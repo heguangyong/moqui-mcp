@@ -16,6 +16,8 @@ import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
 import javax.crypto.spec.IvParameterSpec
 
+import org.moqui.openai.OpenAIResponseHandler
+
 class ProcessWeChatServlet extends HttpServlet {
     protected final static Logger logger = LoggerFactory.getLogger(ProcessWeChatServlet.class)
     private static final String TOKEN = "moquiwechat"
@@ -64,7 +66,8 @@ class ProcessWeChatServlet extends HttpServlet {
             TextMsg textMsg = recMsg
             String toUser = textMsg.FromUserName
             String fromUser = textMsg.ToUserName
-            String content = "test" // Custom response
+            // Call OpenAI GPT Service to get the response
+            String content = OpenAIResponseHandler.processRequest(textMsg.Content)
             def replyMsg = new TextMsg(toUser, fromUser, content)
             resp.writer.write(replyMsg.send())
         } else {
