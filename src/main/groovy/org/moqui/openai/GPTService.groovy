@@ -15,8 +15,8 @@ import java.util.concurrent.TimeUnit;
 
 class GPTService {
     protected final static Logger logger = LoggerFactory.getLogger(GPTService.class)
-    private static final String OPENAI_API_KEY = "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"
-    private static final String OPENAI_API_KEY2 = "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"
+    private static final String OPENAI_API_KEY = ""
+    private static final String OPENAI_API_KEY2 = ""
 
     private static final String API_URL = "https://api.openai.com/v1/chat/completions"
     private static OkHttpClient client

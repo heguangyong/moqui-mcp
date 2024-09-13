@@ -53,32 +53,3 @@ Given your preference for a natural language understanding AI tool:
 2. **Role-Based Query Filtering**: Implement logic in Moqui that applies party authority rules to filter AI responses.
 3. **Training and Maintenance**: Build a pipeline to periodically train the AI with updated ERP data.
 
-## practice script
-
-test the openAI api key's valid
-
-key1:
-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
-key2:
-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
-use proxy
-curl -x http://127.0.0.1:7890 https://api.openai.com/v1/completions \
-```
-curl https://api.openai.com/v1/completions \
--H "Content-Type: application/json" \
--H "Authorization: Bearer YOUR_API_KEY" \
--d '{
-"model": "gpt-3.5-turbo",
-"messages": [{"role": "user", "content": "Say this is a test"}],
-"max_tokens": 10
-}'
-```
-
-curl -x http://127.0.0.1:7890 https://api.openai.com/v1/completions \
--H "Content-Type: application/json" \
--H "Authorization: Bearer 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" \
--d '{
-"model": "gpt-3.5-turbo",
-"messages": [{"role": "user", "content": "Say this is a test"}],
-"max_tokens": 10
-}'
