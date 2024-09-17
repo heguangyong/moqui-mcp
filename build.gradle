@@ -53,8 +53,7 @@ dependencies {
     // Add moqui-wechat dependencies here
     implementation 'commons-codec:commons-codec:1.15'  // For SHA1 encryption
     implementation 'org.bouncycastle:bcprov-jdk15on:1.70'  // Optional, for AES encryption if required
-    implementation 'com.unfbx:chatgpt-java:1.1.5'    // Add OpenAI GPT dependencies
-
+    implementation 'io.github.ollama4j:ollama4j:1.0.84' //for interacting with Ollama API
 }
 
 // by default the Java plugin runs test on build, change to not do that (only run test if explicit task)
