@@ -1,0 +1,44 @@
+import org.moqui.context.ExecutionContext
+import org.moqui.Moqui
+import org.moqui.ollama.OllamaAPIService
+import spock.lang.Shared
+import spock.lang.Specification
+
+class WechatServiceTests extends Specification {
+    @Shared
+    ExecutionContext ec
+
+    def setupSpec() {
+        // Initialize Moqui framework, get the execution context (ec)
+        ec = Moqui.getExecutionContext()
+    }
+
+    def cleanupSpec() {
+        ec.destroy()
+    }
+
+    def setup() {
+        ec.user.loginUser("john.doe", "moqui")
+        ec.artifactExecution.disableAuthz()
+        ec.transaction.begin(null)
+    }
+
+    def cleanup() {
+        ec.transaction.commit()
+        ec.artifactExecution.enableAuthz()
+        ec.user.logoutUser()
+    }
+
+    def "Try asking a question, receiving the answer streamed"() {
+        given:
+        OllamaAPIService ollamaAPIService = new OllamaAPIService()
+
+        when:
+        // Test the Ollama service call through the OllamaAPIService
+        ollamaAPIService.askQuestion(null) // Adjust as necessary for your method
+
+        then:
+        noExceptionThrown() // Basic check that it runs without errors
+        // Add assertions here based on the expected behavior of your API service
+    }
+}

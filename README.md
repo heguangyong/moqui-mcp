@@ -1,5 +1,14 @@
 ## A moqui-wechat component
 
+To install run (with moqui-framework):
+
+    $ ./gradlew getComponent -Pcomponent=moqui-wechat
+
+To test run(use --tests ""*WechatServices" match the case)：
+
+    $ ./gradlew :runtime:component:example:test --tests "*WechatServices"
+
+
 To build the `moqui-wechat` component and integrate a suitable AI tool, here are the steps and AI options you should consider:
 
 To integrate **Ollama with Llama 3.1** into your **moqui-wechat** component using the **ollama4j plugin**, here is a refined and clear description of the process:
