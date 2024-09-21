@@ -20,9 +20,11 @@ class OllamaAPIService {
             println(s)
         }
 
+        // Adjusting the method call to include the missing boolean parameter (e.g., for streaming)
+        boolean stream = true // or false, depending on your requirements
         // Make the API request using the Ollama3.1 model
         OllamaResult result = ollamaAPI.generate(OllamaModelType.LLAMA3_1,
-                "What is the capital of France? And what's France's connection with Mona Lisa?",
+                question,stream,
                 new OptionsBuilder().build(), streamHandler)
 
         // Print the full response at the end

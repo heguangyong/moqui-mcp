@@ -3,7 +3,6 @@
 <moqui-conf xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/moqui-conf-3.xsd">
     <tools>
         <tool-factory class="org.moqui.wechat.WeChatToolFactory" init-priority="20" disabled="false"/>
-        <tool-factory class="org.moqui.openai.OpenAIToolFactory" init-priority="20" disabled="false"/>
     </tools>
     <webapp-list>
         <webapp name="webroot">

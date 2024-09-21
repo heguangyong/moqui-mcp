@@ -29,13 +29,12 @@ class WechatServiceTests extends Specification {
         ec.user.logoutUser()
     }
 
-    def "Try asking a question, receiving the answer streamed"() {
+    def "Try asking a question, receiving the answer streamed with WechatService"() {
         given:
-        OllamaAPIService ollamaAPIService = new OllamaAPIService()
 
         when:
         // Test the Ollama service call through the OllamaAPIService
-        ollamaAPIService.askQuestion(null) // Adjust as necessary for your method
+        OllamaAPIService.askQuestion("What is the capital of France? And what's France's connection with Mona Lisa?") // Adjust as necessary for your method
 
         then:
         noExceptionThrown() // Basic check that it runs without errors
