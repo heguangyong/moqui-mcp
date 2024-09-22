@@ -6,7 +6,7 @@ To install run (with moqui-framework):
 
 To test run(use --tests ""*WechatServices" match the case)：
 
-    $ ./gradlew :runtime:component:example:test --tests "*WechatServices"
+    $ ./gradlew :runtime:component:moqui-wechat:test --tests "*WechatServices"
 
 
 To build the `moqui-wechat` component and integrate a suitable AI tool, here are the steps and AI options you should consider:

@@ -34,10 +34,11 @@ class WechatServiceTests extends Specification {
 
         when:
         // Test the Ollama service call through the OllamaAPIService
-        OllamaAPIService.askQuestion("What is the capital of France? And what's France's connection with Mona Lisa?") // Adjust as necessary for your method
+        OllamaAPIService.askAQuestionReceivingTheAnswerStreamed("单挑") // Adjust as necessary for your method
 
         then:
         noExceptionThrown() // Basic check that it runs without errors
         // Add assertions here based on the expected behavior of your API service
+        response.contains("Paris") // Adjust this assertion based on expected output
     }
 }

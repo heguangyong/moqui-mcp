@@ -3,6 +3,7 @@ package org.moqui.wechat
 import groovy.xml.MarkupBuilder
 import groovy.util.XmlParser
 import org.apache.commons.codec.digest.DigestUtils
+import org.moqui.ollama.OllamaAPIService
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -65,8 +66,10 @@ class ProcessWeChatServlet extends HttpServlet {
             TextMsg textMsg = recMsg
             String toUser = textMsg.FromUserName
             String fromUser = textMsg.ToUserName
+//            logger.info("Received message: ${textMsg.Content}")
             // Call OpenAI GPT Service to get the response
-            String content = "chat to ollama"
+            String content =  OllamaAPIService.askAQuestionReceivingTheAnswerStreamed(textMsg.Content)
+//            logger.info("Reply message: ${content}")
             def replyMsg = new TextMsg(toUser, fromUser, content)
             resp.writer.write(replyMsg.send())
         } else {
