@@ -53,4 +53,29 @@ class WechatServiceTests extends Specification {
         // Add assertions here based on the expected behavior of your API service
         response.contains("Paris") // Adjust this assertion based on expected output
     }
+
+
+    def "Try asking a question from general topics with WechatService"(){
+        given:
+
+        when:
+        // Test the Ollama service call through the OllamaAPIService
+        OllamaAPIService.askingAQuestionFromGeneralTopics("List all cricket world cup teams of 2019.") // Adjust as necessary for your method
+
+        then:
+        noExceptionThrown() // Basic check that it runs without errors
+        // Add assertions here based on the expected behavior of your API service
+    }
+
+    def "Try asking for a Database query for your data schema with WechatService"(){
+        given:
+
+        when:
+        // Test the Ollama service call through the OllamaAPIService
+        OllamaAPIService.askingForADatabaseQueryForYourDataSchema() // Adjust as necessary for your method
+
+        then:
+        noExceptionThrown() // Basic check that it runs without errors
+        // Add assertions here based on the expected behavior of your API service
+    }
 }

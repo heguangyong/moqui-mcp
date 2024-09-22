@@ -5,6 +5,7 @@ import io.github.ollama4j.models.generate.OllamaStreamHandler
 import io.github.ollama4j.models.response.OllamaResult
 import io.github.ollama4j.types.OllamaModelType
 import io.github.ollama4j.utils.OptionsBuilder
+import io.github.ollama4j.utils.SamplePrompts
 
 class OllamaAPIService {
 
@@ -45,8 +46,34 @@ class OllamaAPIService {
         println("Full response: " + result.getResponse())
     }
 
+    // this method may caused the request timed out.
+    static void askingAQuestionFromGeneralTopics(topics){
+        String host = "http://localhost:11434/";
+
+        OllamaAPI ollamaAPI = new OllamaAPI(host);
+
+        OllamaResult result =
+                ollamaAPI.generate(OllamaModelType.LLAMA3_1, topics, true,new OptionsBuilder().build());
+
+        System.out.println(result.getResponse());
+    }
+
+    static void askingForADatabaseQueryForYourDataSchema(){
+        String host = "http://localhost:11434/";
+
+        OllamaAPI ollamaAPI = new OllamaAPI(host);
+        String prompt = SamplePrompts.getSampleDatabasePromptWithQuestion(
+                "List all customer names who have bought one or more products");
+        OllamaResult result =
+                ollamaAPI.generate(OllamaModelType.SQLCODER, prompt, true,new OptionsBuilder().build());
+
+        System.out.println(result.getResponse());
+    }
+
     static void main(String[] args) {
 //        askAQuestionAboutTheModel()
-        askAQuestionReceivingTheAnswerStreamed("单挑")
+//        askAQuestionReceivingTheAnswerStreamed("单挑")
+//        askingAQuestionFromGeneralTopics("List all cricket world cup teams of 2019.")
+        askingForADatabaseQueryForYourDataSchema()
     }
 }
