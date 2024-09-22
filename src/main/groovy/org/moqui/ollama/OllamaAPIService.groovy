@@ -14,12 +14,14 @@ class OllamaAPIService {
 
         // Initialize the Ollama API client
         OllamaAPI ollamaAPI = new OllamaAPI(host)
+        boolean stream = false // or false, depending on your requirements
         OllamaResult result =
-                ollamaAPI.generate(OllamaModelType.LLAMA3_1, "Who are you?", new OptionsBuilder().build());
+                ollamaAPI.generate(OllamaModelType.LLAMA3_1, "Who are you?", stream,new OptionsBuilder().build());
 
         System.out.println(result.getResponse());
     }
 
+    // this method may caused the request timed out. the ollama service need more time to think about some question.
     static void askAQuestionReceivingTheAnswerStreamed(String question) {
         // Adjust the host to point to the SSH tunnel if necessary
         String host = "http://localhost:11434/"
