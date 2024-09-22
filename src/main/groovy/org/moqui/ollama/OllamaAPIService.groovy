@@ -46,7 +46,7 @@ class OllamaAPIService {
     }
 
     static void main(String[] args) {
-        askAQuestionAboutTheModel()
-//        askAQuestionReceivingTheAnswerStreamed("单挑")
+//        askAQuestionAboutTheModel()
+        askAQuestionReceivingTheAnswerStreamed("单挑")
     }
 }
