@@ -1,9 +1,8 @@
 package org.moqui.wechat
 
-import groovy.xml.MarkupBuilder
-import groovy.util.XmlParser
+
 import org.apache.commons.codec.digest.DigestUtils
-import org.moqui.ollama.OllamaAPIService
+import org.moqui.ollama.OllamaService
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -11,12 +10,6 @@ import javax.servlet.ServletException
 import javax.servlet.http.HttpServlet
 import javax.servlet.http.HttpServletRequest
 import javax.servlet.http.HttpServletResponse
-import java.io.IOException
-import java.util.Base64
-import javax.crypto.Cipher
-import javax.crypto.spec.SecretKeySpec
-import javax.crypto.spec.IvParameterSpec
-
 
 class ProcessWeChatServlet extends HttpServlet {
     protected final static Logger logger = LoggerFactory.getLogger(ProcessWeChatServlet.class)
@@ -68,7 +61,7 @@ class ProcessWeChatServlet extends HttpServlet {
             String fromUser = textMsg.ToUserName
 //            logger.info("Received message: ${textMsg.Content}")
             // Call OpenAI GPT Service to get the response
-            String content =  OllamaAPIService.askAQuestionReceivingTheAnswerStreamed(textMsg.Content)
+            String content =  OllamaService.asyncAskQuestion(textMsg.Content)
 //            logger.info("Reply message: ${content}")
             def replyMsg = new TextMsg(toUser, fromUser, content)
             resp.writer.write(replyMsg.send())

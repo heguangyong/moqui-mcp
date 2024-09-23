@@ -2,14 +2,14 @@ package org.moqui.ollama
 
 import io.github.ollama4j.OllamaAPI
 import io.github.ollama4j.models.generate.OllamaStreamHandler
+import io.github.ollama4j.models.response.OllamaAsyncResultStreamer
 import io.github.ollama4j.models.response.OllamaResult
 import io.github.ollama4j.types.OllamaModelType
 import io.github.ollama4j.utils.OptionsBuilder
-import io.github.ollama4j.utils.SamplePrompts
 
-class OllamaAPIService {
+class OllamaService {
 
-    static void askAQuestionAboutTheModel(){
+    static void whoAreYou(){
         // Adjust the host to point to the SSH tunnel if necessary
         String host = "http://localhost:11434/"
 
@@ -23,7 +23,7 @@ class OllamaAPIService {
     }
 
     // this method may caused the request timed out. the ollama service need more time to think about some question.
-    static void askAQuestionReceivingTheAnswerStreamed(String question) {
+    static void syncAskQuestion(String question) {
         // Adjust the host to point to the SSH tunnel if necessary
         String host = "http://localhost:11434/"
 
@@ -46,34 +46,36 @@ class OllamaAPIService {
         println("Full response: " + result.getResponse())
     }
 
-    // this method may caused the request timed out.
-    static void askingAQuestionFromGeneralTopics(topics){
+    static void asyncAskQuestion(String question){
         String host = "http://localhost:11434/";
-
         OllamaAPI ollamaAPI = new OllamaAPI(host);
+        ollamaAPI.setRequestTimeoutSeconds(60);
+        String prompt = question?question:"List all cricket world cup teams of 2019.";
+        OllamaAsyncResultStreamer streamer = ollamaAPI.generateAsync(OllamaModelType.LLAMA3_1, prompt, false);
 
-        OllamaResult result =
-                ollamaAPI.generate(OllamaModelType.LLAMA3_1, topics, true,new OptionsBuilder().build());
+        // Set the poll interval according to your needs.
+        // Smaller the poll interval, more frequently you receive the tokens.
+        int pollIntervalMilliseconds = 1000;
 
-        System.out.println(result.getResponse());
+        while (true) {
+            String tokens = streamer.getStream().poll();
+            System.out.print(tokens);
+            if (!streamer.isAlive()) {
+                break;
+            }
+            Thread.sleep(pollIntervalMilliseconds);
+        }
+
+        System.out.println("\n------------------------");
+        System.out.println("Complete Response:");
+        System.out.println("------------------------");
+
+        System.out.println(streamer.getCompleteResponse());
     }
 
-    static void askingForADatabaseQueryForYourDataSchema(){
-        String host = "http://localhost:11434/";
 
-        OllamaAPI ollamaAPI = new OllamaAPI(host);
-        String prompt = SamplePrompts.getSampleDatabasePromptWithQuestion(
-                "List all customer names who have bought one or more products");
-        OllamaResult result =
-                ollamaAPI.generate(OllamaModelType.SQLCODER, prompt, true,new OptionsBuilder().build());
-
-        System.out.println(result.getResponse());
-    }
 
     static void main(String[] args) {
-//        askAQuestionAboutTheModel()
-//        askAQuestionReceivingTheAnswerStreamed("单挑")
-//        askingAQuestionFromGeneralTopics("List all cricket world cup teams of 2019.")
-        askingForADatabaseQueryForYourDataSchema()
+        asyncAskQuestion("List all cricket world cup teams of 2019.")
     }
 }

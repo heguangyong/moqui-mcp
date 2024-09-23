@@ -1,6 +1,6 @@
 import org.moqui.context.ExecutionContext
 import org.moqui.Moqui
-import org.moqui.ollama.OllamaAPIService
+import org.moqui.ollama.OllamaService
 import spock.lang.Shared
 import spock.lang.Specification
 
@@ -34,7 +34,7 @@ class WechatServiceTests extends Specification {
 
         when:
         // Test the Ollama service call through the OllamaAPIService
-        OllamaAPIService.askAQuestionAboutTheModel() // Adjust as necessary for your method
+        OllamaService.askAQuestionAboutTheModel() // Adjust as necessary for your method
 
         then:
         noExceptionThrown() // Basic check that it runs without errors
@@ -46,7 +46,7 @@ class WechatServiceTests extends Specification {
 
         when:
         // Test the Ollama service call through the OllamaAPIService
-        OllamaAPIService.askAQuestionReceivingTheAnswerStreamed("where is the capital of France?") // Adjust as necessary for your method
+        OllamaService.askAQuestionReceivingTheAnswerStreamed("where is the capital of France?") // Adjust as necessary for your method
 
         then:
         noExceptionThrown() // Basic check that it runs without errors
@@ -60,7 +60,7 @@ class WechatServiceTests extends Specification {
 
         when:
         // Test the Ollama service call through the OllamaAPIService
-        OllamaAPIService.askingAQuestionFromGeneralTopics("List all cricket world cup teams of 2019.") // Adjust as necessary for your method
+        OllamaService.askingAQuestionFromGeneralTopics("List all cricket world cup teams of 2019.") // Adjust as necessary for your method
 
         then:
         noExceptionThrown() // Basic check that it runs without errors
@@ -72,7 +72,7 @@ class WechatServiceTests extends Specification {
 
         when:
         // Test the Ollama service call through the OllamaAPIService
-        OllamaAPIService.askingForADatabaseQueryForYourDataSchema() // Adjust as necessary for your method
+        OllamaService.askingForADatabaseQueryForYourDataSchema() // Adjust as necessary for your method
 
         then:
         noExceptionThrown() // Basic check that it runs without errors
