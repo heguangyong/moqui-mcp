@@ -29,24 +29,24 @@ class WechatServiceTests extends Specification {
         ec.user.logoutUser()
     }
 
-    def "Try asking a question about the model with WechatService"(){
+    def "Try asking who are you with WechatService"(){
         given:
 
         when:
         // Test the Ollama service call through the OllamaAPIService
-        OllamaService.askAQuestionAboutTheModel() // Adjust as necessary for your method
+        OllamaService.whoAreYou() // Adjust as necessary for your method
 
         then:
         noExceptionThrown() // Basic check that it runs without errors
         // Add assertions here based on the expected behavior of your API service
     }
 
-    def "Try asking a question, receiving the answer streamed with WechatService"() {
+    def "Try asking sync ask question with WechatService"() {
         given:
 
         when:
         // Test the Ollama service call through the OllamaAPIService
-        OllamaService.askAQuestionReceivingTheAnswerStreamed("where is the capital of France?") // Adjust as necessary for your method
+        OllamaService.syncAskQuestion("where is the capital of France?") // Adjust as necessary for your method
 
         then:
         noExceptionThrown() // Basic check that it runs without errors
@@ -55,24 +55,12 @@ class WechatServiceTests extends Specification {
     }
 
 
-    def "Try asking a question from general topics with WechatService"(){
+    def "Try asking async ask question with WechatService"(){
         given:
 
         when:
         // Test the Ollama service call through the OllamaAPIService
-        OllamaService.askingAQuestionFromGeneralTopics("List all cricket world cup teams of 2019.") // Adjust as necessary for your method
-
-        then:
-        noExceptionThrown() // Basic check that it runs without errors
-        // Add assertions here based on the expected behavior of your API service
-    }
-
-    def "Try asking for a Database query for your data schema with WechatService"(){
-        given:
-
-        when:
-        // Test the Ollama service call through the OllamaAPIService
-        OllamaService.askingForADatabaseQueryForYourDataSchema() // Adjust as necessary for your method
+        OllamaService.asyncAskQuestion("List all cricket world cup teams of 2019.") // Adjust as necessary for your method
 
         then:
         noExceptionThrown() // Basic check that it runs without errors
