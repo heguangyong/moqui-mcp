@@ -7,6 +7,8 @@ import io.github.ollama4j.models.response.OllamaResult
 import io.github.ollama4j.types.OllamaModelType
 import io.github.ollama4j.utils.OptionsBuilder
 
+import java.util.concurrent.CompletableFuture
+
 class OllamaService {
 
     static void whoAreYou(){
@@ -46,36 +48,42 @@ class OllamaService {
         println("Full response: " + result.getResponse())
     }
 
-    static void asyncAskQuestion(String question){
-        String host = "http://localhost:11434/";
-        OllamaAPI ollamaAPI = new OllamaAPI(host);
-        ollamaAPI.setRequestTimeoutSeconds(60);
-        String prompt = question?question:"List all cricket world cup teams of 2019.";
-        OllamaAsyncResultStreamer streamer = ollamaAPI.generateAsync(OllamaModelType.LLAMA3_1, prompt, false);
+    static CompletableFuture<String> asyncAskQuestion(String question) {
+        return CompletableFuture.supplyAsync(() -> {
+            String host = "http://localhost:11434/";
+            OllamaAPI ollamaAPI = new OllamaAPI(host);
+            ollamaAPI.setRequestTimeoutSeconds(60);
+            String prompt = question;
 
-        // Set the poll interval according to your needs.
-        // Smaller the poll interval, more frequently you receive the tokens.
-        int pollIntervalMilliseconds = 1000;
+            OllamaAsyncResultStreamer streamer = ollamaAPI.generateAsync(OllamaModelType.LLAMA3_1, prompt, false);
+            int pollIntervalMilliseconds = 1000;
 
-        while (true) {
-            String tokens = streamer.getStream().poll();
-            System.out.print(tokens);
-            if (!streamer.isAlive()) {
-                break;
+            StringBuilder completeResponse = new StringBuilder();
+
+            while (true) {
+                try {
+                    String tokens = streamer.getStream().poll();
+                    if (tokens != null) {
+                        completeResponse.append(tokens);
+                    }
+
+                    if (!streamer.isAlive()) {
+                        break;
+                    }
+
+                    Thread.sleep(pollIntervalMilliseconds);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Streaming interrupted", e);
+                }
             }
-            Thread.sleep(pollIntervalMilliseconds);
-        }
 
-        System.out.println("\n------------------------");
-        System.out.println("Complete Response:");
-        System.out.println("------------------------");
-
-        System.out.println(streamer.getCompleteResponse());
+            // Return the complete response as a string
+            return completeResponse.toString();
+        });
     }
 
-
-
     static void main(String[] args) {
-        asyncAskQuestion("List all cricket world cup teams of 2019.")
+        print ("Full response: " +asyncAskQuestion("List all cricket world cup teams of 2019."))
     }
 }
