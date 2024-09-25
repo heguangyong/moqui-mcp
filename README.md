@@ -57,3 +57,26 @@ To ensure the AI stays updated with current ERP data, you will need a regular tr
 ---
 
 This approach enables a private, secure, and scalable AI-powered WeChat interaction system within the Moqui ERP environment using **Ollama with Llama 3.1** and the **ollama4j plugin**.
+
+### 公众号AI集成
+
+- [x] 从本地请求ollama测试
+  ```
+  curl http://localhost:11434/api/generate -d '{
+  "model": "llama3.1",
+  "prompt":"Why is the sky blue?"
+  }'
+  ```
+- [x] 从服务器请求ollama测试
+  ```
+  ssh -R 11434:localhost:11434 root@192.168.0.141   
+  curl http://localhost:11434/api/generate -d '{
+  "model": "llama3.1",
+  "prompt": "Why is the sky blue?"
+  }' -H "Content-Type: application/json"
+  ```
+- [x] 从moqui-wechat请求ollama测试  
+  运行测试脚本
+  ```
+  ./gradlew :runtime:component:moqui-wechat:test --info
+  ```
