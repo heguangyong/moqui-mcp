@@ -4,6 +4,7 @@ import io.github.ollama4j.OllamaAPI
 import io.github.ollama4j.models.response.OllamaAsyncResultStreamer
 import io.github.ollama4j.types.OllamaModelType
 import org.apache.commons.codec.digest.DigestUtils
+import org.moqui.context.ExecutionContext
 import org.moqui.context.ExecutionContextFactory
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -44,52 +45,58 @@ class ProcessWeChatServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         // Step 2: Receive message from WeChat user
         String weChatMessage = request.reader.text;
-
-        // Step 3: Acknowledge receipt quickly to avoid WeChat timeout
-        response.getWriter().write("Message received, processing...");
-
-        // Step 4: Submit a task to handle the Ollama async call without blocking the servlet
-        executorService.submit(() -> {
-            HttpURLConnection connection = null;
-            try {
-                def recMsg = parseXml(weChatMessage);
-                if (recMsg instanceof TextMsg) {
-                    TextMsg textMsg = recMsg;
-                    String toUser = textMsg.FromUserName;
-                    String fromUser = textMsg.ToUserName;
-
-                    // Call the Ollama API asynchronously and send the response to WeChat user
-                    String ollamaResponse = callOllamaAsync(weChatMessage);
-                    def replyMsg = new TextMsg(toUser, fromUser, ollamaResponse);
-
-                    // Send the constructed XML response (make a POST request to WeChat API)
-                    // Get the access token from the WeChatAccessTokenManager
-                    ExecutionContextFactory ecf = request.getAttribute("ecf");
-                    WeChatAccessTokenManager tokenManager = (WeChatAccessTokenManager) ecf.getTool("WeChatAccessTokenManager");
-                    String accessToken = tokenManager.getAccessToken();
-                    connection = (HttpURLConnection) new URL("https://api.weixin.qq.com/cgi-bin/message/custom/send?access_token=" + accessToken).openConnection();
-                    connection.setDoOutput(true);
-                    connection.setRequestMethod("POST");
-                    connection.setRequestProperty("Content-Type", "application/xml"); // Set content type
-
-                    try (OutputStream os = connection.getOutputStream()) {
-                        os.write(replyMsg.send().getBytes("UTF-8"));
-                    }
-
-                    int responseCode = connection.getResponseCode();
-                    if (responseCode != HttpURLConnection.HTTP_OK) {
-                        logger.error("Failed to send message to WeChat user: HTTP code {}", responseCode);
-                    }
-                }
-            } catch (Exception e) {
-                logger.error("Error processing WeChat message: {}", e.getMessage());
-                // Optionally handle failure (e.g., notify the user)
-            } finally {
-                if (connection != null) {
-                    connection.disconnect(); // Ensure the connection is closed
-                }
+        logger.info("request info :"+ request)
+        def recMsg = parseXml(weChatMessage);
+        if (recMsg instanceof TextMsg) {
+            TextMsg textMsg = recMsg;
+            String toUser = textMsg.FromUserName;
+            String fromUser = textMsg.ToUserName;
+            def replyMsg = new TextMsg(toUser, fromUser, "Message received, processing...");
+            // Step 3: Acknowledge receipt quickly to avoid WeChat timeout
+            response.getWriter().write(replyMsg.send());
+            // Access Moqui's ExecutionContext and WeChatAccessTokenManager
+            ExecutionContext ec = (ExecutionContext) request.getAttribute("ec");  // Get ExecutionContext
+            if (ec == null) {
+                logger.error("ExecutionContext not found in request");
+                return;
             }
-        });
+            // Send the constructed XML response (make a POST request to WeChat API)
+            // init the framework, get the ec
+            ExecutionContextFactory ecf = ec.getExecutionContextFactory();
+            WeChatAccessTokenManager tokenManager = (WeChatAccessTokenManager) ecf.getTool("WeChatAccessTokenManager");
+            String accessToken = tokenManager.getAccessToken();
+            HttpURLConnection connection = null;
+            connection = (HttpURLConnection) new URL("https://api.weixin.qq.com/cgi-bin/message/custom/send?access_token=" + accessToken).openConnection();
+            connection.setDoOutput(true);
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/xml"); // Set content type
+
+            // Step 4: Submit a task to handle the Ollama async call without blocking the servlet
+            executorService.submit(() -> {
+                try {
+                        // Call the Ollama API asynchronously and send the response to WeChat user
+                        String ollamaResponse = callOllamaAsync(weChatMessage);
+                        replyMsg = new TextMsg(toUser, fromUser, ollamaResponse);
+
+                        try (OutputStream os = connection.getOutputStream()) {
+                            os.write(replyMsg.send().getBytes("UTF-8"));
+                        }
+
+                        int responseCode = connection.getResponseCode();
+                        if (responseCode != HttpURLConnection.HTTP_OK) {
+                            logger.error("Failed to send message to WeChat user: HTTP code {}", responseCode);
+                        }
+
+                } catch (Exception e) {
+                    logger.error("Error processing WeChat message: {}", e.getMessage());
+                    // Optionally handle failure (e.g., notify the user)
+                } finally {
+                    if (connection != null) {
+                        connection.disconnect(); // Ensure the connection is closed
+                    }
+                }
+            })
+        }
     }
 
     // Step 5: This method calls Ollama API asynchronously and returns the complete response.
