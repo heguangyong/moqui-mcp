@@ -6,7 +6,7 @@
     </tools>
     <webapp-list>
         <webapp name="webroot">
-            <servlet name="ProcessWeChatServlet" class="org.moqui.wechat.ProcessWeChatServlet" load-on-startup="1">
+            <servlet name="MoquiWechatServlet" class="org.moqui.wechat.MoquiWechatServlet" load-on-startup="1">
                 <url-pattern>/wechat/callback</url-pattern></servlet>
         </webapp>
     </webapp-list>
