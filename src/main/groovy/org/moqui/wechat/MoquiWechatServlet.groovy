@@ -55,6 +55,7 @@ class MoquiWechatServlet extends HttpServlet {
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        logger.info("request: " + request)
         ExecutionContextFactoryImpl ecfi = (ExecutionContextFactoryImpl) request.getServletContext().getAttribute("executionContextFactory")
         String moquiWebappName = request.getServletContext().getInitParameter("moqui-name")
 
@@ -83,18 +84,33 @@ class MoquiWechatServlet extends HttpServlet {
             logger.info("Received WeChat message: " + weChatMessage)
             WechatMsg recMsg = WechatMsg.parseXml(weChatMessage)
 
-            if (recMsg instanceof TextMsg) {
-                TextMsg textMsg = recMsg
-                String toUser = textMsg.FromUserName
-                String fromUser = textMsg.ToUserName
-                def replyMsg = new TextMsg(toUser, fromUser, "Message received, processing...")
+            // Check if the message is valid and determine the type
+            if (recMsg != null) {
+                String toUser = recMsg.FromUserName
+                String fromUser = recMsg.ToUserName
+                String replyText
+
+                if (recMsg.MsgType == 'text') {
+                    // Handle text message
+                    logger.info("Processing text message")
+                    replyText = "Text message received: " + recMsg.Content
+                } else if (recMsg.MsgType == 'image') {
+                    // Handle image message
+                    logger.info("Processing image message")
+                    replyText = "Image message received with MediaId: " + recMsg.MediaId
+                } else {
+                    // Handle unknown message type
+                    logger.warn("Unknown message type received: " + recMsg.MsgType)
+                    replyText = "Unsupported message type received."
+                }
 
                 // Step 3: Acknowledge receipt quickly to avoid WeChat timeout
+                WechatMsg replyMsg = new WechatMsg(toUser, fromUser, 'text', replyText)
                 logger.info("Replying to WeChat: " + replyMsg.send())
                 response.getWriter().write(replyMsg.send())
 
                 // Fetch WeChat access token using ExecutionContext's tool manager
-                WeChatAccessTokenManager tokenManager = (WeChatAccessTokenManager) ecfi.getTool("WeChatAccessTokenManager",WeChatAccessTokenManager.class)
+                WeChatAccessTokenManager tokenManager = (WeChatAccessTokenManager) ecfi.getTool("WeChatAccessTokenManager", WeChatAccessTokenManager.class)
                 String accessToken = tokenManager.getAccessToken()
 
                 // Step 4: Prepare to send a response to the WeChat user
@@ -107,10 +123,10 @@ class MoquiWechatServlet extends HttpServlet {
                 executorService.submit(() -> {
                     try {
                         String ollamaResponse = callOllamaAsync(weChatMessage)
-                        replyMsg = new TextMsg(toUser, fromUser, ollamaResponse)
+                        WechatMsg ollamaReplyMsg = new WechatMsg(toUser, fromUser, 'text', ollamaResponse)
 
                         try (OutputStream os = connection.getOutputStream()) {
-                            os.write(replyMsg.send().getBytes("UTF-8"))
+                            os.write(ollamaReplyMsg.send().getBytes("UTF-8"))
                         }
 
                         int responseCode = connection.getResponseCode()
@@ -131,6 +147,7 @@ class MoquiWechatServlet extends HttpServlet {
             ec.destroy()
         }
     }
+
 
     private static String callOllamaAsync(String prompt) throws Exception {
         String host = "http://localhost:11434/" // Change to your Ollama API URL
