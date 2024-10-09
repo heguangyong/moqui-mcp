@@ -75,6 +75,14 @@ This approach enables a private, secure, and scalable AI-powered WeChat interact
   "prompt": "Why is the sky blue?"
   }' -H "Content-Type: application/json"
   ```
+- [x] 从本地请求服务器ollama测试
+  ```
+  ssh -L 11434:localhost:11434 root@192.168.0.141   
+  curl http://localhost:11434/api/generate -d '{
+  "model": "llama3.1",
+  "prompt": "Why is the sky blue?"
+  }' -H "Content-Type: application/json"
+  ```
 - [x] 从moqui-wechat请求ollama测试  
   运行测试脚本
   ```
