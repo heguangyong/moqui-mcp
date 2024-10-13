@@ -62,10 +62,14 @@ This approach enables a private, secure, and scalable AI-powered WeChat interact
 
 - [x] 从本地请求ollama测试
   ```
-  curl http://localhost:11434/api/generate -d '{
-  "model": "llama3.1",
-  "prompt":"Why is the sky blue?"
-  }'
+  curl -X POST http://localhost:11434/api/generate \
+     -H "Content-Type: application/json" \
+     -d '{
+           "model": "llama3.2",
+           "prompt": "Hello, how are you?",
+           "temperature": 0.7,
+           "max_tokens": 100
+         }'
   ```
 - [x] 从服务器请求ollama测试
   ```

@@ -1,11 +1,17 @@
 package org.moqui.ollama
 
 import io.github.ollama4j.OllamaAPI
+import io.github.ollama4j.models.chat.OllamaChatMessage
+import io.github.ollama4j.models.chat.OllamaChatMessageRole
+import io.github.ollama4j.models.chat.OllamaChatRequest
+import io.github.ollama4j.models.chat.OllamaChatRequestBuilder
+import io.github.ollama4j.models.chat.OllamaChatResult
 import io.github.ollama4j.models.generate.OllamaStreamHandler
 import io.github.ollama4j.models.response.OllamaAsyncResultStreamer
 import io.github.ollama4j.models.response.OllamaResult
 import io.github.ollama4j.types.OllamaModelType
 import io.github.ollama4j.utils.OptionsBuilder
+import io.github.ollama4j.utils.SamplePrompts
 
 import java.util.concurrent.CompletableFuture
 
@@ -17,6 +23,7 @@ class OllamaService {
 
         // Initialize the Ollama API client
         OllamaAPI ollamaAPI = new OllamaAPI(host)
+        ollamaAPI.setRequestTimeoutSeconds(60);
         boolean stream = false // or false, depending on your requirements
         OllamaResult result =
                 ollamaAPI.generate(OllamaModelType.LLAMA3_1, "Who are you?", stream,new OptionsBuilder().build());
@@ -24,28 +31,51 @@ class OllamaService {
         System.out.println(result.getResponse());
     }
 
-    // this method may caused the request timed out. the ollama service need more time to think about some question.
-    static void syncAskQuestion(String question) {
-        // Adjust the host to point to the SSH tunnel if necessary
-        String host = "http://localhost:11434/"
+    static void chat(){
+        String host = "http://localhost:11434/";
+
+        OllamaAPI ollamaAPI = new OllamaAPI(host);
+        ollamaAPI.setRequestTimeoutSeconds(60);
+        OllamaChatRequestBuilder builder = OllamaChatRequestBuilder.getInstance(OllamaModelType.LLAMA3_1);
+
+        // create first user question
+        OllamaChatRequest requestModel = builder.withMessage(OllamaChatMessageRole.USER, "What is the capital of France?")
+                .build();
+
+        // start conversation with model
+        OllamaChatResult chatResult = ollamaAPI.chat(requestModel);
+
+        System.out.println("First answer: " + chatResult.getResponse());
+
+        // create next userQuestion
+        requestModel = builder.withMessages(chatResult.getChatHistory()).withMessage(OllamaChatMessageRole.USER, "And what is the second largest city?").build();
+
+        // "continue" conversation with model
+        chatResult = ollamaAPI.chat(requestModel);
+
+        System.out.println("Second answer: " + chatResult.getResponse());
+
+        System.out.println("Chat History: " + chatResult.getChatHistory());
+    }
+
+    static void QueryDatabase() {
+        // Set the host to the local Ollama service through SSH tunnel
+        String host = "http://localhost:11434/";
 
         // Initialize the Ollama API client
-        OllamaAPI ollamaAPI = new OllamaAPI(host)
-
-        // Define a stream handler to process the response stream
-        OllamaStreamHandler streamHandler = { String s ->
-            println(s)
-        }
-
-        // Adjusting the method call to include the missing boolean parameter (e.g., for streaming)
+        OllamaAPI ollamaAPI = new OllamaAPI(host);
+        ollamaAPI.setRequestTimeoutSeconds(60);
+        // Define the prompt
+        String prompt =
+                SamplePrompts.getSampleDatabasePromptWithQuestion(
+                        "List all customer names who have bought one or more products");
         boolean stream = false // or false, depending on your requirements
-        // Make the API request using the Ollama3.1 model
-        OllamaResult result = ollamaAPI.generate(OllamaModelType.LLAMA3_1,
-                question,stream,
-                new OptionsBuilder().build(), streamHandler)
+        // Call the Ollama API and get the result
+        OllamaResult result =
+                ollamaAPI.generate(OllamaModelType.SQLCODER, prompt, stream,new OptionsBuilder().build());
 
-        // Print the full response at the end
-        println("Full response: " + result.getResponse())
+        // Print the response
+        System.out.println(result.getResponse());
     }
 
     static CompletableFuture<String> asyncAskQuestion(String question) {
@@ -84,6 +114,6 @@ class OllamaService {
     }
 
     static void main(String[] args) {
-        print ("Full response: " +asyncAskQuestion("List all cricket world cup teams of 2019."))
+        chat()
     }
 }
