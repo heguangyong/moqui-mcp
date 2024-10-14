@@ -1,6 +1,7 @@
 package org.moqui.ollama
 
 import io.github.ollama4j.OllamaAPI
+import io.github.ollama4j.impl.ConsoleOutputStreamHandler
 import io.github.ollama4j.models.chat.OllamaChatMessage
 import io.github.ollama4j.models.chat.OllamaChatMessageRole
 import io.github.ollama4j.models.chat.OllamaChatRequest
@@ -56,6 +57,80 @@ class OllamaService {
         System.out.println("Second answer: " + chatResult.getResponse());
 
         System.out.println("Chat History: " + chatResult.getChatHistory());
+    }
+
+    static void chatStreamed(){
+        String host = "http://localhost:11434/";
+
+        OllamaAPI ollamaAPI = new OllamaAPI(host);
+        ollamaAPI.setRequestTimeoutSeconds(60);
+        OllamaChatRequestBuilder builder = OllamaChatRequestBuilder.getInstance(OllamaModelType.LLAMA3_1);
+        OllamaChatRequest requestModel = builder.withMessage(OllamaChatMessageRole.USER,
+                "What is the capital of France? And what's France's connection with Mona Lisa?")
+                .build();
+
+        // define a handler (Consumer<String>)
+        OllamaStreamHandler streamHandler = (s) -> {
+            System.out.println(s);
+        };
+
+        OllamaChatResult chatResult = ollamaAPI.chat(requestModel, streamHandler);
+    }
+
+    static void chatConsoleStreamed(){
+        String host = "http://localhost:11434/";
+        OllamaAPI ollamaAPI = new OllamaAPI(host);
+        ollamaAPI.setRequestTimeoutSeconds(60);
+        OllamaChatRequestBuilder builder = OllamaChatRequestBuilder.getInstance(OllamaModelType.LLAMA3_1);
+        OllamaChatRequest requestModel = builder.withMessage(OllamaChatMessageRole.USER, "List all cricket world cup teams of 2019. Name the teams!")
+                .build();
+        OllamaStreamHandler streamHandler = new ConsoleOutputStreamHandler();
+        ollamaAPI.chat(requestModel, streamHandler);
+    }
+
+    static void chatWithPrompt(){
+        String host = "http://localhost:11434/";
+
+        OllamaAPI ollamaAPI = new OllamaAPI(host);
+        ollamaAPI.setRequestTimeoutSeconds(60);
+        OllamaChatRequestBuilder builder = OllamaChatRequestBuilder.getInstance(OllamaModelType.LLAMA3_1);
+
+        // create request with system-prompt (overriding the model defaults) and user question
+        OllamaChatRequest requestModel = builder.withMessage(OllamaChatMessageRole.SYSTEM, "You are a silent bot that only says 'NI'. Do not say anything else under any circumstances!")
+                .withMessage(OllamaChatMessageRole.USER, "What is the capital of France? And what's France's connection with Mona Lisa?")
+                .build();
+
+        // start conversation with model
+        OllamaChatResult chatResult = ollamaAPI.chat(requestModel);
+
+        System.out.println(chatResult.getResponse());
+    }
+
+    static void chatWithImage(){
+        String host = "http://localhost:11434/";
+
+        OllamaAPI ollamaAPI = new OllamaAPI(host);
+        ollamaAPI.setRequestTimeoutSeconds(180);
+        OllamaChatRequestBuilder builder = OllamaChatRequestBuilder.getInstance(OllamaModelType.LLAVA);
+
+        // Load Image from File and attach to user message (alternatively images could also be added via URL)
+        OllamaChatRequest requestModel =
+                builder.withMessage(OllamaChatMessageRole.USER, "What's in the picture?",
+                        List.of(
+                                new File("/Users/demo/Workspace/moqui/runtime/component/moqui-wechat/src/main/resources/dog-on-a-boat.jpg"))).build();
+
+        OllamaChatResult chatResult = ollamaAPI.chat(requestModel);
+        System.out.println("First answer: " + chatResult.getResponse());
+
+        builder.reset();
+
+        // Use history to ask further questions about the image or assistant answer
+        requestModel =
+                builder.withMessages(chatResult.getChatHistory())
+                        .withMessage(OllamaChatMessageRole.USER, "What's the dogs breed?").build();
+
+        chatResult = ollamaAPI.chat(requestModel);
+        System.out.println("Second answer: " + chatResult.getResponse());
     }
 
     static void QueryDatabase() {
@@ -114,6 +189,6 @@ class OllamaService {
     }
 
     static void main(String[] args) {
-        chat()
+        chatWithImage()
     }
 }
