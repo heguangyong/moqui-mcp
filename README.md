@@ -58,9 +58,11 @@ To ensure the AI stays updated with current ERP data, you will need a regular tr
 
 This approach enables a private, secure, and scalable AI-powered WeChat interaction system within the Moqui ERP environment using **Ollama with Llama 3.1** and the **ollama4j plugin**.
 
-### 公众号AI集成
+### WeChat public account AI integration
+pay attention to the model llama version's params difference. llama3.1 / llama3.2
+need update the ollama jar for the new version of the model.
 
-- [x] 从本地请求ollama测试
+- [x] call local ollama server with model llama3.2
   ```
   curl -X POST http://localhost:11434/api/generate \
      -H "Content-Type: application/json" \
@@ -71,7 +73,7 @@ This approach enables a private, secure, and scalable AI-powered WeChat interact
            "max_tokens": 100
          }'
   ```
-- [x] 从服务器请求ollama测试
+- [x] call the remote ollama server with model llama3.1
   ```
   ssh -R 11434:localhost:11434 root@192.168.0.141   
   curl http://localhost:11434/api/generate -d '{
@@ -79,7 +81,7 @@ This approach enables a private, secure, and scalable AI-powered WeChat interact
   "prompt": "Why is the sky blue?"
   }' -H "Content-Type: application/json"
   ```
-- [x] 从本地请求服务器ollama测试
+- [x] call remote ollama server from local
   ```
   ssh -L 11434:localhost:11434 root@192.168.0.141   
   curl http://localhost:11434/api/generate -d '{
@@ -87,8 +89,7 @@ This approach enables a private, secure, and scalable AI-powered WeChat interact
   "prompt": "Why is the sky blue?"
   }' -H "Content-Type: application/json"
   ```
-- [x] 从moqui-wechat请求ollama测试  
-  运行测试脚本
+- [x] moqui-wechat call ollama by moqui-wechat
   ```
   ./gradlew :runtime:component:moqui-wechat:test --info
   ```
