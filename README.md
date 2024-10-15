@@ -75,7 +75,6 @@ need update the ollama jar for the new version of the model.
   ```
 - [x] call the remote ollama server with model llama3.1
   ```
-  ssh -R 11434:localhost:11434 root@192.168.0.141   
   curl http://localhost:11434/api/generate -d '{
   "model": "llama3.1",
   "prompt": "Why is the sky blue?"

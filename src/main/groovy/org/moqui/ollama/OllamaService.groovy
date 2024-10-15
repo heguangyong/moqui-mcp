@@ -133,6 +133,56 @@ class OllamaService {
         System.out.println("Second answer: " + chatResult.getResponse());
     }
 
+    static void chatAsync(){
+        String host = "http://localhost:11434/";
+        OllamaAPI ollamaAPI = new OllamaAPI(host);
+        ollamaAPI.setRequestTimeoutSeconds(60);
+        String prompt = "List all cricket world cup teams of 2019.";
+        OllamaAsyncResultStreamer streamer = ollamaAPI.generateAsync(OllamaModelType.LLAMA3_1, prompt, false);
+
+        // Set the poll interval according to your needs.
+        // Smaller the poll interval, more frequently you receive the tokens.
+        int pollIntervalMilliseconds = 1000;
+
+        while (true) {
+            String tokens = streamer.getStream().poll();
+            System.out.print(tokens);
+            if (!streamer.isAlive()) {
+                break;
+            }
+            Thread.sleep(pollIntervalMilliseconds);
+        }
+
+        System.out.println("\n------------------------");
+        System.out.println("Complete Response:");
+        System.out.println("------------------------");
+
+        System.out.println(streamer.getCompleteResponse());
+    }
+
+    static void generateEmbeddings(){
+        String host = "http://localhost:11434/";
+        OllamaAPI ollamaAPI = new OllamaAPI(host);
+        ollamaAPI.setRequestTimeoutSeconds(60);
+        List<Double> embeddings = ollamaAPI.generateEmbeddings(OllamaModelType.LLAMA3_1,
+                "Here is an article about llamas...");
+
+        embeddings.forEach(System.out::println);
+    }
+
+    static void generateWithImage(){
+        String host = "http://localhost:11434/";
+        OllamaAPI ollamaAPI = new OllamaAPI(host);
+        ollamaAPI.setRequestTimeoutSeconds(60);
+        OllamaResult result = ollamaAPI.generateWithImageFiles(OllamaModelType.LLAVA,
+                "What's in this image?",
+                List.of(
+                        new File("/home/karma/IdeaProjects/moqui/runtime/component/moqui-wechat/src/main/resources/dog-on-a-boat.jpg")),
+                new OptionsBuilder().build()
+        );
+        System.out.println(result.getResponse());
+    }
+
     static void QueryDatabase() {
         // Set the host to the local Ollama service through SSH tunnel
         String host = "http://localhost:11434/";
@@ -189,6 +239,6 @@ class OllamaService {
     }
 
     static void main(String[] args) {
-        chatWithImage()
+        generateWithImage()
     }
 }
