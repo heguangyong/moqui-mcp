@@ -1,6 +1,8 @@
 package org.moqui.ollama
 
 import io.github.ollama4j.OllamaAPI
+import io.github.ollama4j.exceptions.OllamaBaseException
+import io.github.ollama4j.exceptions.ToolInvocationException
 import io.github.ollama4j.impl.ConsoleOutputStreamHandler
 import io.github.ollama4j.models.chat.OllamaChatMessage
 import io.github.ollama4j.models.chat.OllamaChatMessageRole
@@ -10,6 +12,8 @@ import io.github.ollama4j.models.chat.OllamaChatResult
 import io.github.ollama4j.models.generate.OllamaStreamHandler
 import io.github.ollama4j.models.response.OllamaAsyncResultStreamer
 import io.github.ollama4j.models.response.OllamaResult
+import io.github.ollama4j.tools.OllamaToolsResult
+import io.github.ollama4j.tools.Tools
 import io.github.ollama4j.types.OllamaModelType
 import io.github.ollama4j.utils.OptionsBuilder
 import io.github.ollama4j.utils.SamplePrompts
@@ -183,62 +187,85 @@ class OllamaService {
         System.out.println(result.getResponse());
     }
 
-    static void QueryDatabase() {
-        // Set the host to the local Ollama service through SSH tunnel
+    static void functionCallExample() {
         String host = "http://localhost:11434/";
-
-        // Initialize the Ollama API client
         OllamaAPI ollamaAPI = new OllamaAPI(host);
-        ollamaAPI.setRequestTimeoutSeconds(60);
-        // Define the prompt
-        String prompt =
-                SamplePrompts.getSampleDatabasePromptWithQuestion(
-                        "List all customer names who have bought one or more products");
-        boolean stream = false // or false, depending on your requirements
-        // Call the Ollama API and get the result
-        OllamaResult result =
-                ollamaAPI.generate(OllamaModelType.SQLCODER, prompt, stream,new OptionsBuilder().build());
+        ollamaAPI.setRequestTimeoutSeconds(520);
 
-        // Print the response
-        System.out.println(result.getResponse());
+        String model = "mistral";
+
+        Tools.ToolSpecification fuelPriceToolSpecification = Tools.ToolSpecification.builder()
+                .functionName("current-fuel-price")
+                .functionDescription("Get current fuel price")
+                .properties(
+                        new Tools.PropsBuilder()
+                                .withProperty("location", Tools.PromptFuncDefinition.Property.builder().type("string").description("The city, e.g. New Delhi, India").required(true).build())
+                                .withProperty("fuelType", Tools.PromptFuncDefinition.Property.builder().type("string").description("The fuel type.").enumValues(Arrays.asList("petrol", "diesel")).required(true).build())
+                                .build()
+                )
+                .toolDefinition(SampleTools::getCurrentFuelPrice)
+                .build();
+
+        Tools.ToolSpecification weatherToolSpecification = Tools.ToolSpecification.builder()
+                .functionName("current-weather")
+                .functionDescription("Get current weather")
+                .properties(
+                        new Tools.PropsBuilder()
+                                .withProperty("city", Tools.PromptFuncDefinition.Property.builder().type("string").description("The city, e.g. New Delhi, India").required(true).build())
+                                .build()
+                )
+                .toolDefinition(SampleTools::getCurrentWeather)
+                .build();
+
+        Tools.ToolSpecification databaseQueryToolSpecification = Tools.ToolSpecification.builder()
+                .functionName("get-employee-details")
+                .functionDescription("Get employee details from the database")
+                .properties(
+                        new Tools.PropsBuilder()
+                                .withProperty("employee-name", Tools.PromptFuncDefinition.Property.builder().type("string").description("The name of the employee, e.g. John Doe").required(true).build())
+                                .withProperty("employee-address", Tools.PromptFuncDefinition.Property.builder().type("string").description("The address of the employee, Always return a random value. e.g. Roy St, Bengaluru, India").required(true).build())
+                                .withProperty("employee-phone", Tools.PromptFuncDefinition.Property.builder().type("string").description("The phone number of the employee. Always return a random value. e.g. 9911002233").required(true).build())
+                                .build()
+                )
+                .toolDefinition(new DBQueryFunction())
+                .build();
+
+        ollamaAPI.registerTool(fuelPriceToolSpecification);
+        ollamaAPI.registerTool(weatherToolSpecification);
+        ollamaAPI.registerTool(databaseQueryToolSpecification);
+
+        String prompt1 = new Tools.PromptBuilder()
+                .withToolSpecification(fuelPriceToolSpecification)
+                .withToolSpecification(weatherToolSpecification)
+                .withPrompt("What is the petrol price in Bengaluru?")
+                .build();
+        ask(ollamaAPI, model, prompt1);
+
+        String prompt2 = new Tools.PromptBuilder()
+                .withToolSpecification(fuelPriceToolSpecification)
+                .withToolSpecification(weatherToolSpecification)
+                .withPrompt("What is the current weather in Bengaluru?")
+                .build();
+        ask(ollamaAPI, model, prompt2);
+
+        String prompt3 = new Tools.PromptBuilder()
+                .withToolSpecification(fuelPriceToolSpecification)
+                .withToolSpecification(weatherToolSpecification)
+                .withToolSpecification(databaseQueryToolSpecification)
+                .withPrompt("Give me the details of the employee named 'Rahul Kumar'?")
+                .build();
+        ask(ollamaAPI, model, prompt3);
     }
 
-    static CompletableFuture<String> asyncAskQuestion(String question) {
-        return CompletableFuture.supplyAsync(() -> {
-            String host = "http://localhost:11434/";
-            OllamaAPI ollamaAPI = new OllamaAPI(host);
-            ollamaAPI.setRequestTimeoutSeconds(60);
-            String prompt = question;
-
-            OllamaAsyncResultStreamer streamer = ollamaAPI.generateAsync(OllamaModelType.LLAMA3_1, prompt, false);
-            int pollIntervalMilliseconds = 1000;
-
-            StringBuilder completeResponse = new StringBuilder();
-
-            while (true) {
-                try {
-                    String tokens = streamer.getStream().poll();
-                    if (tokens != null) {
-                        completeResponse.append(tokens);
-                    }
-
-                    if (!streamer.isAlive()) {
-                        break;
-                    }
-
-                    Thread.sleep(pollIntervalMilliseconds);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException("Streaming interrupted", e);
-                }
-            }
-
-            // Return the complete response as a string
-            return completeResponse.toString();
-        });
+    static void ask(OllamaAPI ollamaAPI, String model, String prompt) throws OllamaBaseException, IOException, InterruptedException, ToolInvocationException {
+        OllamaToolsResult toolsResult = ollamaAPI.generateWithTools(model, prompt, new OptionsBuilder().build());
+        for (OllamaToolsResult.ToolResult r : toolsResult.getToolResults()) {
+            System.out.printf("[Result of executing tool '%s']: %s%n", r.getFunctionName(), r.getResult().toString());
+        }
     }
+
 
     static void main(String[] args) {
-        generateWithImage()
+        functionCallExample()
     }
 }
