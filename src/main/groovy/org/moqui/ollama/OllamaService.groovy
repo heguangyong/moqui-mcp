@@ -16,6 +16,7 @@ import io.github.ollama4j.tools.OllamaToolsResult
 import io.github.ollama4j.tools.Tools
 import io.github.ollama4j.types.OllamaModelType
 import io.github.ollama4j.utils.OptionsBuilder
+import io.github.ollama4j.utils.PromptBuilder
 import io.github.ollama4j.utils.SamplePrompts
 
 import java.util.concurrent.CompletableFuture
@@ -108,6 +109,37 @@ class OllamaService {
         OllamaChatResult chatResult = ollamaAPI.chat(requestModel);
 
         System.out.println(chatResult.getResponse());
+    }
+
+    static void chatWithPromptBuilder(){
+        String host = "http://localhost:11434/";
+        OllamaAPI ollamaAPI = new OllamaAPI(host);
+        ollamaAPI.setRequestTimeoutSeconds(60);
+
+        String model = OllamaModelType.PHI;
+
+        PromptBuilder promptBuilder =
+                new PromptBuilder()
+                        .addLine("You are an expert coder and understand different programming languages.")
+                        .addLine("Given a question, answer ONLY with code.")
+                        .addLine("Produce clean, formatted and indented code in markdown format.")
+                        .addLine(
+                                "DO NOT include ANY extra text apart from code. Follow this instruction very strictly!")
+                        .addLine("If there's any additional information you want to add, use comments within code.")
+                        .addLine("Answer only in the programming language that has been asked for.")
+                        .addSeparator()
+                        .addLine("Example: Sum 2 numbers in Python")
+                        .addLine("Answer:")
+                        .addLine("```python")
+                        .addLine("def sum(num1: int, num2: int) -> int:")
+                        .addLine("    return num1 + num2")
+                        .addLine("```")
+                        .addSeparator()
+                        .add("How do I read a file in Go and print its contents to stdout?");
+
+        boolean raw = false;
+        OllamaResult response = ollamaAPI.generate(model, promptBuilder.build(), raw, new OptionsBuilder().build());
+        System.out.println(response.getResponse());
     }
 
     static void chatWithImage(){
@@ -237,14 +269,14 @@ class OllamaService {
         String prompt1 = new Tools.PromptBuilder()
                 .withToolSpecification(fuelPriceToolSpecification)
                 .withToolSpecification(weatherToolSpecification)
-                .withPrompt("What is the petrol price in Bengaluru?")
+                .withPrompt("What is the petrol price in Shanghai?")
                 .build();
         ask(ollamaAPI, model, prompt1);
 
         String prompt2 = new Tools.PromptBuilder()
                 .withToolSpecification(fuelPriceToolSpecification)
                 .withToolSpecification(weatherToolSpecification)
-                .withPrompt("What is the current weather in Bengaluru?")
+                .withPrompt("What is the current weather in Shanghai?")
                 .build();
         ask(ollamaAPI, model, prompt2);
 
@@ -266,6 +298,7 @@ class OllamaService {
 
 
     static void main(String[] args) {
-        functionCallExample()
+//        functionCallExample()
+        chatWithPromptBuilder()
     }
 }
