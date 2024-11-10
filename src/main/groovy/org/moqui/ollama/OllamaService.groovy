@@ -19,6 +19,8 @@ import io.github.ollama4j.utils.OptionsBuilder
 import io.github.ollama4j.utils.PromptBuilder
 import io.github.ollama4j.utils.SamplePrompts
 
+import java.nio.file.Files
+import java.nio.file.Paths
 import java.util.concurrent.CompletableFuture
 
 class OllamaService {
@@ -114,7 +116,7 @@ class OllamaService {
     static void chatWithPromptBuilder(){
         String host = "http://localhost:11434/";
         OllamaAPI ollamaAPI = new OllamaAPI(host);
-        ollamaAPI.setRequestTimeoutSeconds(60);
+        ollamaAPI.setRequestTimeoutSeconds(240);
 
         String model = OllamaModelType.PHI;
 
@@ -296,9 +298,36 @@ class OllamaService {
         }
     }
 
+    static void chatWithFile(String filePath){
+        String host = "http://localhost:11434/";
+        OllamaAPI ollamaAPI = new OllamaAPI(host);
+        ollamaAPI.setRequestTimeoutSeconds(60);
+
+        try {
+            // 读取文件内容
+            String fileContent = new String(Files.readAllBytes(Paths.get(filePath)));
+
+            // 构建 Ollama 请求，包含文件内容作为系统提示
+            OllamaChatRequestBuilder builder = OllamaChatRequestBuilder.getInstance(OllamaModelType.LLAMA3_1);
+            OllamaChatRequest requestModel = builder
+                    .withMessage(OllamaChatMessageRole.SYSTEM, "Background Information:\n" + fileContent)
+                    .withMessage(OllamaChatMessageRole.USER, "请根据提供的背景信息为我提供分析或总结。请给出用户U003的信息")
+                    .build();
+
+            // 与模型交互
+            OllamaChatResult chatResult = ollamaAPI.chat(requestModel);
+
+            // 打印模型的回复
+            System.out.println("Response: " + chatResult.getResponse());
+
+        } catch (IOException e) {
+            System.err.println("Error reading file: " + e.getMessage());
+        }
+    }
 
     static void main(String[] args) {
 //        functionCallExample()
-        chatWithPromptBuilder()
+//        chatWithPromptBuilder()
+        chatWithFile("/Users/demo/Workspace/moqui/runtime/component/moqui-wechat/src/main/resources/test.md")
     }
 }

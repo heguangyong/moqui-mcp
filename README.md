@@ -1,3 +1,4 @@
+你是个非常了解下面文字的机器人，你需要严格根据下面的内容回答所有的问题。
 ## A moqui-wechat component
 
 To install run (with moqui-framework):
