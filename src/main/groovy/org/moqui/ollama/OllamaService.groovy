@@ -301,7 +301,7 @@ class OllamaService {
     static void chatWithFile(String filePath){
         String host = "http://localhost:11434/";
         OllamaAPI ollamaAPI = new OllamaAPI(host);
-        ollamaAPI.setRequestTimeoutSeconds(60);
+        ollamaAPI.setRequestTimeoutSeconds(240);
 
         try {
             // 读取文件内容
@@ -311,7 +311,7 @@ class OllamaService {
             OllamaChatRequestBuilder builder = OllamaChatRequestBuilder.getInstance(OllamaModelType.LLAMA3_1);
             OllamaChatRequest requestModel = builder
                     .withMessage(OllamaChatMessageRole.SYSTEM, "Background Information:\n" + fileContent)
-                    .withMessage(OllamaChatMessageRole.USER, "请根据提供的背景信息为我提供分析或总结。请给出用户U003的信息")
+                    .withMessage(OllamaChatMessageRole.USER, "请列举一个用户信息作为示例")
                     .build();
 
             // 与模型交互
@@ -326,6 +326,7 @@ class OllamaService {
     }
 
     static void main(String[] args) {
+//        chat()
 //        functionCallExample()
 //        chatWithPromptBuilder()
         chatWithFile("/Users/demo/Workspace/moqui/runtime/component/moqui-wechat/src/main/resources/test.md")
