@@ -311,7 +311,7 @@ class OllamaService {
             OllamaChatRequestBuilder builder = OllamaChatRequestBuilder.getInstance(OllamaModelType.LLAMA3_1);
             OllamaChatRequest requestModel = builder
                     .withMessage(OllamaChatMessageRole.SYSTEM, "Background Information:\n" + fileContent)
-                    .withMessage(OllamaChatMessageRole.USER, "请列举一个用户信息作为示例")
+                    .withMessage(OllamaChatMessageRole.USER, "请列举张三信息作为示例")
                     .build();
 
             // 与模型交互
@@ -325,10 +325,42 @@ class OllamaService {
         }
     }
 
+    static void functionCallUser(){
+        String host = "http://localhost:11434/";
+        OllamaAPI ollamaAPI = new OllamaAPI(host);
+        ollamaAPI.setRequestTimeoutSeconds(1024);
+
+//        String model = "mistral";
+        String model = "llama3.1";
+
+        Tools.ToolSpecification databaseQueryToolSpecification = Tools.ToolSpecification.builder()
+                .functionName("get-employee-details")
+                .functionDescription("Get employee details from the database")
+                .properties(
+                        new Tools.PropsBuilder()
+                                .withProperty("employee-name", Tools.PromptFuncDefinition.Property.builder().type("string").description("The name of the employee, e.g. John Doe").required(true).build())
+                                .withProperty("employee-address", Tools.PromptFuncDefinition.Property.builder().type("string").description("The address of the employee, Always return a random value. e.g. Roy St, Bengaluru, India").required(true).build())
+                                .withProperty("employee-phone", Tools.PromptFuncDefinition.Property.builder().type("string").description("The phone number of the employee. Always return a random value. e.g. 9911002233").required(true).build())
+                                .build()
+                )
+                .toolDefinition(new DBQueryFunction())
+                .build();
+
+        ollamaAPI.registerTool(databaseQueryToolSpecification);
+
+
+        String prompt3 = new Tools.PromptBuilder()
+                .withToolSpecification(databaseQueryToolSpecification)
+                .withPrompt("Give me the details of the employee named 'Rahul Kumar'?")
+                .build();
+        ask(ollamaAPI, model, prompt3);
+    }
+
     static void main(String[] args) {
 //        chat()
 //        functionCallExample()
 //        chatWithPromptBuilder()
-        chatWithFile("/Users/demo/Workspace/moqui/runtime/component/moqui-wechat/src/main/resources/test.md")
+//        chatWithFile("/Users/demo/Workspace/moqui/runtime/component/moqui-wechat/src/main/resources/test.md")
+        functionCallUser()
     }
 }
