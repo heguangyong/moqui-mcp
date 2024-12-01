@@ -1,11 +1,22 @@
-package org.moqui.ollama
+package org.moqui.ollama;
 
-import io.github.ollama4j.tools.ToolFunction
+import io.github.ollama4j.tools.ToolFunction;
+import java.util.Map;
+import java.util.UUID;
 
-class DBQueryFunction implements ToolFunction {
+public class DBQueryFunction implements ToolFunction {
     @Override
     public Object apply(Map<String, Object> arguments) {
-        // perform DB operations here
-        return String.format("Employee Details {ID: %s, Name: %s, Address: %s, Phone: %s}", UUID.randomUUID(), arguments.get("employee-name").toString(), arguments.get("employee-address").toString(), arguments.get("employee-phone").toString());
+        // 从参数中获取城市、姓名和手机号
+        String city = arguments.get("city").toString();
+        String name = arguments.get("name").toString();
+        String phone = arguments.get("phone").toString();
+
+        // 在这里执行实际的数据库操作来检索用户详细信息
+        // 你可以使用 JDBC 或其他数据库访问技术
+
+        // 假设你已经检索到相应的数据，这里是一个模拟的返回结果
+        return String.format("User Details {City: %s, Name: %s, Phone: %s, ID: %s}",
+                city, name, phone, UUID.randomUUID());
     }
 }

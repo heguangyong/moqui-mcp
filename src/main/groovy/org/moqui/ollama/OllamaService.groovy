@@ -21,6 +21,7 @@ import io.github.ollama4j.utils.SamplePrompts
 
 import java.nio.file.Files
 import java.nio.file.Paths
+import java.security.MessageDigest
 import java.util.concurrent.CompletableFuture
 
 class OllamaService {
@@ -325,22 +326,34 @@ class OllamaService {
         }
     }
 
-    static void functionCallUser(){
+    static void functionCallUser() {
         String host = "http://localhost:11434/";
         OllamaAPI ollamaAPI = new OllamaAPI(host);
         ollamaAPI.setRequestTimeoutSeconds(1024);
 
-//        String model = "mistral";
-        String model = "llama3.1";
+        String model = "mistral";
 
+        // 修改工具定义，使之支持城市、姓名和手机号字段
         Tools.ToolSpecification databaseQueryToolSpecification = Tools.ToolSpecification.builder()
-                .functionName("get-employee-details")
-                .functionDescription("Get employee details from the database")
+                .functionName("get-user-details")
+                .functionDescription("Get user details based on city, name, and phone number")
                 .properties(
                         new Tools.PropsBuilder()
-                                .withProperty("employee-name", Tools.PromptFuncDefinition.Property.builder().type("string").description("The name of the employee, e.g. John Doe").required(true).build())
-                                .withProperty("employee-address", Tools.PromptFuncDefinition.Property.builder().type("string").description("The address of the employee, Always return a random value. e.g. Roy St, Bengaluru, India").required(true).build())
-                                .withProperty("employee-phone", Tools.PromptFuncDefinition.Property.builder().type("string").description("The phone number of the employee. Always return a random value. e.g. 9911002233").required(true).build())
+                                .withProperty("city", Tools.PromptFuncDefinition.Property.builder()
+                                        .type("string")
+                                        .description("The city of the user, e.g. Shanghai")
+                                        .required(true)
+                                        .build())
+                                .withProperty("name", Tools.PromptFuncDefinition.Property.builder()
+                                        .type("string")
+                                        .description("The name of the user, e.g. 张三")
+                                        .required(true)
+                                        .build())
+                                .withProperty("phone", Tools.PromptFuncDefinition.Property.builder()
+                                        .type("string")
+                                        .description("The phone number of the user, e.g. 13661414919")
+                                        .required(true)
+                                        .build())
                                 .build()
                 )
                 .toolDefinition(new DBQueryFunction())
@@ -348,11 +361,12 @@ class OllamaService {
 
         ollamaAPI.registerTool(databaseQueryToolSpecification);
 
-
+        // 使用新的提示示例进行查询
         String prompt3 = new Tools.PromptBuilder()
                 .withToolSpecification(databaseQueryToolSpecification)
-                .withPrompt("Give me the details of the employee named 'Rahul Kumar'?")
+                .withPrompt("Give me the details of the user named '张三'?")
                 .build();
+
         ask(ollamaAPI, model, prompt3);
     }
 
