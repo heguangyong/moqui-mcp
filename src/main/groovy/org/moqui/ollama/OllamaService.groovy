@@ -18,6 +18,10 @@ import io.github.ollama4j.types.OllamaModelType
 import io.github.ollama4j.utils.OptionsBuilder
 import io.github.ollama4j.utils.PromptBuilder
 import io.github.ollama4j.utils.SamplePrompts
+import tech.amikos.chromadb.Client
+import tech.amikos.chromadb.Collection
+import tech.amikos.chromadb.embeddings.EmbeddingFunction
+import tech.amikos.chromadb.embeddings.ollama.OllamaEmbeddingFunction
 
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -292,12 +296,7 @@ class OllamaService {
         ask(ollamaAPI, model, prompt3);
     }
 
-    static void ask(OllamaAPI ollamaAPI, String model, String prompt) throws OllamaBaseException, IOException, InterruptedException, ToolInvocationException {
-        OllamaToolsResult toolsResult = ollamaAPI.generateWithTools(model, prompt, new OptionsBuilder().build());
-        for (OllamaToolsResult.ToolResult r : toolsResult.getToolResults()) {
-            System.out.printf("[Result of executing tool '%s']: %s%n", r.getFunctionName(), r.getResult().toString());
-        }
-    }
+
 
     static void chatWithFile(String filePath){
         String host = "http://localhost:11434/";
@@ -326,6 +325,12 @@ class OllamaService {
         }
     }
 
+    static void ask(OllamaAPI ollamaAPI, String model, String prompt) throws OllamaBaseException, IOException, InterruptedException, ToolInvocationException {
+        OllamaToolsResult toolsResult = ollamaAPI.generateWithTools(model, prompt, new OptionsBuilder().build());
+        for (OllamaToolsResult.ToolResult r : toolsResult.getToolResults()) {
+            System.out.printf("[Result of executing tool '%s']: %s%n", r.getFunctionName(), r.getResult().toString());
+        }
+    }
     static void functionCallUser() {
         String host = "http://localhost:11434/";
         OllamaAPI ollamaAPI = new OllamaAPI(host);
@@ -370,11 +375,33 @@ class OllamaService {
         ask(ollamaAPI, model, prompt3);
     }
 
+    static void callChromadb() {
+        try {
+            Client client = "http://localhost:8000";//new Client(System.getenv("CHROMA_URL"));
+            client.reset();
+            EmbeddingFunction ef = new OllamaEmbeddingFunction();
+            Collection collection = client.createCollection("test-collection", null, true, ef);
+            List<Map<String, String>> metadata = new ArrayList<>();
+            metadata.add(new HashMap<String, String>() {{
+                put("type", "scientist");
+            }});
+            metadata.add(new HashMap<String, String>() {{
+                put("type", "spy");
+            }});
+            collection.add(null, metadata, Arrays.asList("Hello, my name is John. I am a Data Scientist.", "Hello, my name is Bond. I am a Spy."), Arrays.asList("1", "2"));
+            Collection.QueryResponse qr = collection.query(Arrays.asList("Who is the spy"), 10, null, null, null);
+            System.out.println(qr);
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+    }
+
     static void main(String[] args) {
 //        chat()
 //        functionCallExample()
 //        chatWithPromptBuilder()
 //        chatWithFile("/Users/demo/Workspace/moqui/runtime/component/moqui-wechat/src/main/resources/test.md")
-        functionCallUser()
+//        functionCallUser()
+        callChromadb()
     }
 }
