@@ -53,7 +53,7 @@ dependencies {
     // Add moqui-wechat dependencies here
     implementation 'commons-codec:commons-codec:1.15'  // For SHA1 encryption
     implementation 'org.bouncycastle:bcprov-jdk15on:1.70'  // Optional, for AES encryption if required
-    implementation 'io.github.ollama4j:ollama4j:1.0.84' //for interacting with Ollama API
+    implementation 'io.github.ollama4j:ollama4j:1.0.89' //for interacting with Ollama API
     implementation 'io.github.amikos-tech:chromadb-java-client:0.1.7' //Chroma Vector Database Java Client
 }
 

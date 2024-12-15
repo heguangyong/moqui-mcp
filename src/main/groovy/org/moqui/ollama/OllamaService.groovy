@@ -17,10 +17,11 @@ import io.github.ollama4j.tools.Tools
 import io.github.ollama4j.types.OllamaModelType
 import io.github.ollama4j.utils.OptionsBuilder
 import io.github.ollama4j.utils.PromptBuilder
-import io.github.ollama4j.utils.SamplePrompts
+import io.github.ollama4j.models.embeddings.OllamaEmbedResponseModel;
 import tech.amikos.chromadb.Client
 import tech.amikos.chromadb.Collection
 import tech.amikos.chromadb.embeddings.EmbeddingFunction
+import tech.amikos.chromadb.embeddings.WithParam
 import tech.amikos.chromadb.embeddings.ollama.OllamaEmbeddingFunction
 
 import java.nio.file.Files
@@ -203,16 +204,6 @@ class OllamaService {
         System.out.println(streamer.getCompleteResponse());
     }
 
-    static void generateEmbeddings(){
-        String host = "http://localhost:11434/";
-        OllamaAPI ollamaAPI = new OllamaAPI(host);
-        ollamaAPI.setRequestTimeoutSeconds(60);
-        List<Double> embeddings = ollamaAPI.generateEmbeddings(OllamaModelType.LLAMA3_1,
-                "Here is an article about llamas...");
-
-        embeddings.forEach(System.out::println);
-    }
-
     static void generateWithImage(){
         String host = "http://localhost:11434/";
         OllamaAPI ollamaAPI = new OllamaAPI(host);
@@ -296,8 +287,6 @@ class OllamaService {
         ask(ollamaAPI, model, prompt3);
     }
 
-
-
     static void chatWithFile(String filePath){
         String host = "http://localhost:11434/";
         OllamaAPI ollamaAPI = new OllamaAPI(host);
@@ -331,6 +320,7 @@ class OllamaService {
             System.out.printf("[Result of executing tool '%s']: %s%n", r.getFunctionName(), r.getResult().toString());
         }
     }
+
     static void functionCallUser() {
         String host = "http://localhost:11434/";
         OllamaAPI ollamaAPI = new OllamaAPI(host);
@@ -375,11 +365,20 @@ class OllamaService {
         ask(ollamaAPI, model, prompt3);
     }
 
+    static void generateEmbeddings(){
+        String host = "http://localhost:11434/";
+        OllamaAPI ollamaAPI = new OllamaAPI(host);
+        ollamaAPI.setRequestTimeoutSeconds(60);
+        OllamaEmbedResponseModel embeddings = ollamaAPI.embed(OllamaModelType.MISTRAL, Arrays.asList("Why is the sky blue?", "Why is the grass green?"));
+        System.out.println(embeddings);
+    }
+
     static void callChromadb() {
         try {
-            Client client = "http://localhost:8000";//new Client(System.getenv("CHROMA_URL"));
+            Client client = new Client("http://127.0.0.1:8000");
             client.reset();
-            EmbeddingFunction ef = new OllamaEmbeddingFunction();
+            System.setProperty("OLLAMA_URL", "http://localhost:11434/api/embed");
+            EmbeddingFunction ef = new OllamaEmbeddingFunction(WithParam.baseAPI(System.getProperty("OLLAMA_URL")));
             Collection collection = client.createCollection("test-collection", null, true, ef);
             List<Map<String, String>> metadata = new ArrayList<>();
             metadata.add(new HashMap<String, String>() {{
@@ -402,6 +401,7 @@ class OllamaService {
 //        chatWithPromptBuilder()
 //        chatWithFile("/Users/demo/Workspace/moqui/runtime/component/moqui-wechat/src/main/resources/test.md")
 //        functionCallUser()
+//        generateEmbeddings()
         callChromadb()
     }
 }
