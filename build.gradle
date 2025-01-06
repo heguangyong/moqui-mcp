@@ -53,8 +53,9 @@ dependencies {
     // Add moqui-wechat dependencies here
     implementation 'commons-codec:commons-codec:1.15'  // For SHA1 encryption
     implementation 'org.bouncycastle:bcprov-jdk15on:1.70'  // Optional, for AES encryption if required
-    implementation 'io.github.ollama4j:ollama4j:1.0.89' //for interacting with Ollama API
+    implementation 'io.github.ollama4j:ollama4j:1.0.90' //for interacting with Ollama API
     implementation 'io.github.amikos-tech:chromadb-java-client:0.1.7' //Chroma Vector Database Java Client
+    implementation 'org.apache.pdfbox:pdfbox:2.0.1' //PDF parse tool
 }
 
 // by default the Java plugin runs test on build, change to not do that (only run test if explicit task)
