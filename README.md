@@ -92,3 +92,46 @@ need update the ollama jar for the new version of the model.
   ```
   ./gradlew :runtime:component:moqui-wechat:test --info
   ```
+
+### Use RAG Flow to make my private domain data have the AI ability
+
+![RAG  FLOW](rag_flow.jpg)
+
+#### Step1:setup python env , chromadb and run as server mode
+- require python3+ env: current use python 3.12.3
+- active the env: source ~/myenv/bin/activate\n
+- install the chromadb: pip install chromadb
+- run chromadb as server mode: chroma run --path /db_path
+  ```
+  //测试时允许重置数据库
+  ALLOW_RESET=TRUE chroma run --path /Users/demo/chromadb
+  ```
+
+#### Step2: run ollama and use EmbeddingFunction
+```
+// 配置 Ollama Embedding Function
+System.setProperty("OLLAMA_URL", "http://localhost:11434/api/embed");
+EmbeddingFunction ef = new OllamaEmbeddingFunction(WithParam.baseAPI(System.getProperty("OLLAMA_URL")));
+
+// 创建 HR 数据知识库 Collection
+Collection collection = client.createCollection("hr-knowledge", null, true, ef);
+```
+#### Step2: load the test data and run the gradle script
+- Use HrDataIndexer to import test data into chromadb
+- add dependence of the chromadb:chromadb-java-client.jar 
+- use some test data
+```
+城市	姓名	手机号
+上海	闵大	13661410000
+上海	李二	15601720001
+上海	戚三	15290860002
+上海	李四	17721390003
+```
+### Step3: run the query script
+- more info will get more correct
+```
+// 查询城市和姓名相关信息（例如：查询上海的李蜜的手机号）
+String query = "查询东莞常平镇的刘文博手机号";
+Collection.QueryResponse qr = collection.query(Arrays.asList(query), 5, null, null, null);
+```
+
