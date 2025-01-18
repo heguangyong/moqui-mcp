@@ -54,7 +54,7 @@ public class HrQueryWithKnowledge {
                     ollamaAPI.setRequestTimeoutSeconds(600); // 设置请求超时时间
 
                     // 构建聊天请求（包含系统提示和用户消息）
-                    OllamaChatRequestBuilder builder = OllamaChatRequestBuilder.getInstance("0xroyce/plutus");
+                    OllamaChatRequestBuilder builder = OllamaChatRequestBuilder.getInstance("deepseek-coder-v2");
                     OllamaChatRequest requestModel = builder
                             .withMessage(OllamaChatMessageRole.SYSTEM, "你是一个人力资源管理助手，能快速根据查询条件返回相关人员的详细信息。")
                             .withMessage(OllamaChatMessageRole.USER,
