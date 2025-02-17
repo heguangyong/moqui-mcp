@@ -17,54 +17,51 @@ import java.util.concurrent.Future;
 public class StockDataIndexer {
     public static void main(String[] args) {
         try {
-            // 初始化 ChromaDB 客户端
+            // 初始化 ChromaDB 客户端（与原代码相同）
             System.setProperty("CHROMA_URL", "http://127.0.0.1:8000");
             Client client = new Client(System.getProperty("CHROMA_URL"));
             client.reset();
 
-            // 配置 Ollama Embedding Function
+            // 配置 Ollama Embedding Function（与原代码相同）
             System.setProperty("OLLAMA_URL", "http://localhost:11434/api/embed");
             EmbeddingFunction ef = new OllamaEmbeddingFunction(WithParam.baseAPI(System.getProperty("OLLAMA_URL")));
 
             // 创建股票数据知识库 Collection
-            Collection collection = client.createCollection("stock-knowledge", null, true, ef);
+            Collection collection = client.createCollection("stock-data", null, true, ef);
 
             // 读取并解析股票数据文件
             File dataFile = new File("/Users/demo/Workspace/moqui/runtime/component/moqui-wechat/src/main/resources/stock/SZ#300602.txt");
-            List<String> stockData = extractStockData(dataFile);
+            List<String> dataContents = extractStockDataContents(dataFile);
 
-            // 为每条数据生成元数据
+            // 为每条股票数据生成元数据
             List<Map<String, String>> metadata = new ArrayList<>();
-            for (int i = 0; i < stockData.size(); i++) {
-                String[] fields = stockData.get(i).split("\t");
-
-                // 确保每行数据至少有 7 个字段
-                if (fields.length >= 7) {
-                    metadata.add(Map.of(
-                            "date", fields[0],
-                            "open", fields[1],
-                            "high", fields[2],
-                            "low", fields[3],
-                            "close", fields[4],
-                            "volume", fields[5],
-                            "amount", fields[6]
-                    ));
-                } else {
-                    // 打印或记录错误，跳过该行
-                    System.err.println("数据格式不正确，跳过该行: " + stockData.get(i));
+            for (String content : dataContents) {
+                String[] fields = content.split(",");  // 假设使用逗号分隔
+                if (fields.length != 6) {
+                    System.err.println("无效数据格式: " + content);
+                    continue;
                 }
+
+                metadata.add(new HashMap<String, String>() {{
+                    put("date", fields[0].trim());     // 日期
+                    put("open", fields[1].trim());     // 开盘价
+                    put("high", fields[2].trim());     // 最高价
+                    put("low", fields[3].trim());     // 最低价
+                    put("close", fields[4].trim());    // 收盘价
+                    put("volume", fields[5].trim());   // 成交量
+                }});
             }
 
-            // 并发处理嵌入
+            // 并发处理嵌入（与原代码逻辑相同）
             ExecutorService executor = Executors.newFixedThreadPool(4);
             List<Future<?>> futures = new ArrayList<>();
-            for (int i = 0; i < stockData.size(); i++) {
-                int index = i; // lambda 表达式需要 final 或 effectively final 的变量
+            for (int i = 0; i < dataContents.size(); i++) {
+                int index = i;
                 futures.add(executor.submit(() -> {
                     collection.add(
                             null,
                             List.of(metadata.get(index)),
-                            List.of(stockData.get(index)),
+                            List.of(dataContents.get(index)),  // 使用原始数据作为文档内容
                             List.of(UUID.randomUUID().toString())
                     );
                 }));
@@ -84,22 +81,24 @@ public class StockDataIndexer {
     }
 
     /**
-     * 提取股票数据文件的内容，每行作为一个数据记录。
+     * 提取股票数据文件内容（支持跳过标题行）
      */
-    private static List<String> extractStockData(File dataFile) {
+    private static List<String> extractStockDataContents(File dataFile) {
         List<String> contents = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(dataFile), "GB2312"))) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(dataFile))) {
             String line;
-            // 跳过文件的前几行（例如标题行）
-            reader.readLine(); // 跳过标题行
+            boolean isHeader = true;
             while ((line = reader.readLine()) != null) {
-                if (!line.trim().isEmpty()) {
-                    if (line.split("\t").length < 7) {
-                        System.err.println("数据格式错误: " + line); // 输出不正确的行
-                    } else {
-                        contents.add(line.trim());
-                    }
+                line = line.trim();
+                if (line.isEmpty()) continue;
+
+                // 跳过标题行（例如：Date,Open,High,Low,Close,Volume）
+                if (isHeader) {
+                    isHeader = false;
+                    continue;
                 }
+
+                contents.add(line);
             }
         } catch (Exception e) {
             e.printStackTrace();
