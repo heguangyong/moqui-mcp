@@ -99,6 +99,7 @@ need update the ollama jar for the new version of the model.
 
 #### Step1:setup python env , chromadb and run as server mode
 - require python3+ env: current use python 3.12.3
+- python -m venv myenv
 - active the env: source ~/myenv/bin/activate\n
 - install the chromadb: pip install chromadb
 - run chromadb as server mode: chroma run --path /db_path
