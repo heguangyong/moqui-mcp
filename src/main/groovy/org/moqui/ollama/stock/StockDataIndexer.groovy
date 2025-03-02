@@ -1,125 +1,160 @@
-package org.moqui.ollama.stock;
+package org.moqui.ollama.stock
 
-import tech.amikos.chromadb.Client;
-import tech.amikos.chromadb.Collection;
-import tech.amikos.chromadb.embeddings.EmbeddingFunction;
-import tech.amikos.chromadb.embeddings.WithParam;
-import tech.amikos.chromadb.embeddings.ollama.OllamaEmbeddingFunction;
+import tech.amikos.chromadb.Client
+import tech.amikos.chromadb.Collection
+import tech.amikos.chromadb.embeddings.EmbeddingFunction
+import tech.amikos.chromadb.embeddings.WithParam
+import tech.amikos.chromadb.embeddings.ollama.OllamaEmbeddingFunction
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
-import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.regex.Pattern
+import java.nio.file.Files
 
-public class StockDataIndexer {
-    public static void main(String[] args) {
+class BatchStockDataIndexer {
+    // 配置常量
+    static final String STOCK_DIR = "/Users/demo/Workspace/moqui/runtime/component/moqui-wechat/src/main/resources/stock/"
+    static final Pattern STOCK_CODE_PATTERN = Pattern.compile('(?:SH|SZ)#(\\d+)\\.txt$', Pattern.CASE_INSENSITIVE)
+
+    static final int THREAD_POOL_SIZE = 4
+
+    static void main(String[] args) {
         try {
             // 初始化 ChromaDB 客户端
-            System.setProperty("CHROMA_URL", "http://127.0.0.1:8000");
-            Client client = new Client(System.getProperty("CHROMA_URL"));
-            client.reset();
+            System.setProperty("CHROMA_URL", "http://127.0.0.1:8000")
+            def client = new Client(System.getProperty("CHROMA_URL"))
+            client.reset()
 
-            // 配置 Ollama Embedding Function
-            System.setProperty("OLLAMA_URL", "http://localhost:11434/api/embed");
-            EmbeddingFunction ef = new OllamaEmbeddingFunction(WithParam.baseAPI(System.getProperty("OLLAMA_URL")));
+            // 配置 Embedding Function
+            System.setProperty("OLLAMA_URL", "http://localhost:11434/api/embed")
+            def ef = new OllamaEmbeddingFunction(WithParam.baseAPI(System.getProperty("OLLAMA_URL")))
 
-            // 创建股票数据知识库 Collection
-            Collection collection = client.createCollection("stock-data", null, true, ef);
+            // 创建共享的 Collection
+            def collection = client.createCollection("stock-data", null, true, ef)
 
-            // 读取并解析股票数据文件
-            File dataFile = new File("/Users/demo/Workspace/moqui/runtime/component/moqui-wechat/src/main/resources/stock/SZ#300602.txt");
-            List<String> dataContents = extractStockDataContents(dataFile);
+            // 获取股票文件列表
+            def stockDir = new File(STOCK_DIR)
+            def stockFiles = stockDir.listFiles({ dir, name -> name.endsWith(".txt") } as FilenameFilter)
+            if (!stockFiles) {
+                System.err.println("未找到股票数据文件")
+                return
+            }
 
-            // 为每条股票数据生成元数据
-            List<Map<String, String>> metadata = new ArrayList<>();
-            for (String content : dataContents) {
-                String[] fields = content.split("\t");  // 使用 tab 分隔符
-                if (fields.length != 7) {  // 确保数据列数为7
-                    System.err.println("无效数据格式: " + content);
-                    continue;
+            println "发现股票文件数量: ${stockFiles.length}"
+
+            // 创建线程池
+            def executor = Executors.newFixedThreadPool(THREAD_POOL_SIZE)
+            def totalSuccess = new AtomicInteger(0)
+
+            // 处理每个股票文件
+            stockFiles.each { file ->
+                def stockCode = extractStockCode(file.name)
+                if (!stockCode) {
+                    System.err.println("跳过无效文件名: ${file.name}")
+                    return
                 }
 
-                metadata.add(new HashMap<String, String>() {{
-                    put("date", fields[0].trim());     // 日期
-                    put("open", fields[1].trim());     // 开盘价
-                    put("high", fields[2].trim());     // 最高价
-                    put("low", fields[3].trim());     // 最低价
-                    put("close", fields[4].trim());    // 收盘价
-                    put("volume", fields[5].trim());   // 成交量
-                    put("turnover", fields[6].trim()); // 成交额
-                }});
-            }
-
-            // 并发处理嵌入
-            ExecutorService executor = Executors.newFixedThreadPool(4);
-            List<Future<?>> futures = new ArrayList<>();
-            for (int i = 0; i < dataContents.size(); i++) {
-                int index = i;
-                futures.add(executor.submit(() -> {
-                    // 检查 metadata 和 dataContents 的长度是否匹配
-                    if (metadata.size() <= index || dataContents.size() <= index) {
-                        System.err.println("数据缺失: " + index);
-                        return;
+                executor.execute {
+                    try {
+                        def count = processStockFile(file, stockCode, collection)
+                        totalSuccess.addAndGet(count)
+                        printf "[%s] 处理完成，成功插入 %d 条数据%n", stockCode, count
+                    } catch (e) {
+                        System.err.printf "[%s] 处理失败: %s%n", stockCode, e.message
                     }
-
-                    // 将股票数据添加到 ChromaDB
-                    collection.add(
-                            null,
-                            List.of(metadata.get(index)),
-                            List.of(dataContents.get(index)),  // 使用原始数据作为文档内容
-                            List.of(UUID.randomUUID().toString())
-                    );
-                }));
+                }
             }
 
-            // 等待所有任务完成
-            for (Future<?> future : futures) {
-                future.get();
+            // 关闭线程池并等待完成
+            executor.shutdown()
+            while (!executor.isTerminated()) {
+                sleep(1000)
             }
-            executor.shutdown();
 
-            System.out.println("股票数据已成功构建并存储！");
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.err.println("股票数据存储过程中出现错误！");
+            printf "全部处理完成！总共成功插入 %d 条数据%n", totalSuccess.get()
+        } catch (e) {
+            e.printStackTrace()
+            System.err.println("主流程执行失败！")
         }
     }
 
-    /**
-     * 提取股票数据文件内容（支持跳过标题行）
-     * 修改点：使用GB2312编码读取文件
-     */
-    private static List<String> extractStockDataContents(File dataFile) {
-        List<String> contents = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(new FileInputStream(dataFile), "GB2312"))) {
-            String line;
-            boolean isHeader = true;
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                if (line.isEmpty()) continue;
+    static int processStockFile(File file, String stockCode, Collection collection) {
+        def successCount = new AtomicInteger(0)
+        try {
+            // 读取文件内容
+            def dataContents = extractStockDataContents(file)
+            printf "[%s] 读取到 %d 条数据%n", stockCode, dataContents.size()
 
-                // 跳过标题行（例如：日期 开盘 最高 最低 收盘 成交量 成交额）
-                if (isHeader) {
-                    isHeader = false;
-                    continue;
-                }
+            // 准备元数据和内容
+            def metadataList = []
+            dataContents.each { content ->
+                def fields = content.split("\t")
+                if (fields.length != 7) return
 
-                // 如果行是“数据来源:通达信”这样的无效行，跳过
-                if (line.startsWith("数据来源")) {
-                    continue;
-                }
-
-                contents.add(line);
+                metadataList << [
+                        stock_code: stockCode,
+                        date: fields[0].trim(),
+                        open: fields[1].trim(),
+                        high: fields[2].trim(),
+                        low: fields[3].trim(),
+                        close: fields[4].trim(),
+                        volume: fields[5].trim(),
+                        turnover: fields[6].trim()
+                ]
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.err.println("读取股票数据文件时发生错误！");
+
+            // 批量插入数据
+            def fileExecutor = Executors.newFixedThreadPool(THREAD_POOL_SIZE)
+            def futures = []
+
+            dataContents.eachWithIndex { content, index ->
+                futures << fileExecutor.submit {
+                    try {
+                        collection.add(
+                                null,
+                                [metadataList[index]],
+                                [content],
+                                [UUID.randomUUID().toString()]
+                        )
+                        successCount.incrementAndGet()
+                    } catch (e) {
+                        System.err.printf "[%s] 插入失败第 %d 条: %s%n", stockCode, index, e.message
+                    }
+                }
+            }
+
+            // 等待当前文件任务完成
+            futures.each { it.get() }
+            fileExecutor.shutdown()
+        } catch (e) {
+            e.printStackTrace()
         }
-        return contents;
+        return successCount.get()
+    }
+
+    static String extractStockCode(String filename) {
+        def matcher = STOCK_CODE_PATTERN.matcher(filename)
+        matcher.find() ? matcher.group(1) : null
+    }
+
+    static List<String> extractStockDataContents(File dataFile) {
+        def contents = []
+        try (def reader = new BufferedReader(
+                new InputStreamReader(new FileInputStream(dataFile), "GB2312"))) {
+            def skipHeader = true
+            reader.eachLine { line ->
+                line = line.trim()
+                if (line.isEmpty() || line.startsWith("数据来源")) return
+                if (skipHeader) {
+                    skipHeader = false
+                    return
+                }
+                contents << line
+            }
+        } catch (e) {
+            e.printStackTrace()
+        }
+        return contents
     }
 }
