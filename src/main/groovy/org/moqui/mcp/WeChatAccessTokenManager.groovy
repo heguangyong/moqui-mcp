@@ -1,4 +1,4 @@
-package org.moqui.wechat
+package org.moqui.mcp
 
 import groovy.json.JsonSlurper
 import org.slf4j.Logger

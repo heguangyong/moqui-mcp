@@ -1,4 +1,4 @@
-package org.moqui.wechat
+package org.moqui.mcp
 
 import groovy.transform.CompileStatic
 import io.github.ollama4j.OllamaAPI

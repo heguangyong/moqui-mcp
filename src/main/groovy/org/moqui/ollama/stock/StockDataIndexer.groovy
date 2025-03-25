@@ -12,9 +12,9 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.Pattern
 import java.nio.file.Files
 
-class BatchStockDataIndexer {
+class StockDataIndexer {
     // 配置常量
-    static final String STOCK_DIR = "/Users/demo/Workspace/moqui/runtime/component/moqui-wechat/src/main/resources/stock/"
+    static final String STOCK_DIR = "/Users/demo/Workspace/moqui/runtime/component/moqui-mcp/src/main/resources/stock/"
     static final Pattern STOCK_CODE_PATTERN = Pattern.compile('(?:SH|SZ)#(\\d+)\\.txt$', Pattern.CASE_INSENSITIVE)
 
     static final int THREAD_POOL_SIZE = 4

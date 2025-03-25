@@ -1,6 +1,6 @@
 import org.moqui.context.ExecutionContext
 import org.moqui.Moqui
-import org.moqui.ollama.OllamaService
+
 import spock.lang.Shared
 import spock.lang.Specification
 

@@ -2,11 +2,13 @@
 <!-- No copyright or license for configuration file, details here are not considered a creative work. -->
 <moqui-conf xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/moqui-conf-3.xsd">
     <tools>
-        <tool-factory class="org.moqui.wechat.WeChatToolFactory" init-priority="20" disabled="false"/>
+        <tool-factory class="org.moqui.mcp.WeChatToolFactory" init-priority="20" disabled="false"/>
+        <!-- 在moqui-conf.xml中添加 -->
+        <tool-factory class="org.moqui.mcp.monitor.McpMetricsTool" init-priority="90" disabled="false"/>
     </tools>
     <webapp-list>
         <webapp name="webroot">
-            <servlet name="MoquiWechatServlet" class="org.moqui.wechat.MoquiWechatServlet" load-on-startup="1">
+            <servlet name="MoquiWechatServlet" class="org.moqui.mcp.MoquiWechatServlet" load-on-startup="1">
                 <url-pattern>/wechat/callback</url-pattern></servlet>
         </webapp>
     </webapp-list>

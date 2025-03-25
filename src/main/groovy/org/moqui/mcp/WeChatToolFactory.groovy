@@ -1,4 +1,4 @@
-package org.moqui.wechat
+package org.moqui.mcp
 
 import org.moqui.context.ExecutionContextFactory
 import org.moqui.context.ToolFactory

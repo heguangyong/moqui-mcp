@@ -55,7 +55,7 @@ class StockQueryWithAnalysis {
 
                     def builder = OllamaChatRequestBuilder.getInstance("deepseek-r1")
                     def requestModel = builder
-                            .withMessage(OllamaChatMessageRole.SYSTEM, "你是一个股票分析助手，能根据股票的历史数据进行趋势分析并给出未来价格预测建议。请分析提供的数据，描述价格趋势，并预测未来一周的股价走势。")
+                            .withMessage(OllamaChatMessageRole.SYSTEM, "你是一个股票分析助手，能根据股票的历史数据进行趋势分析并给出未来价格预测建议。请分析提供的数据，描述价格趋势，并预测未来一周的股价走势。仅需给出最终总结和预测，省去中间的分析过程")
                             .withMessage(OllamaChatMessageRole.USER,
                                     "以下是002602 ST华通 最近的日K线数据，请分析其价格趋势并预测未来一周的股价走势：\n" +
                                             recentData.join("\n"))
