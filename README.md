@@ -15,45 +15,29 @@ To integrate **Ollama with Llama 3.1** into your **moqui-wechat** component usin
 
 ---
 
-### Step 1: Choosing Ollama with Llama 3.1
-You’ve selected **Ollama with Llama 3.1** as your private AI service due to its data privacy advantages and strong natural language understanding. This ensures all data interactions remain secure and within your infrastructure, making it ideal for sensitive ERP environments like Moqui.
+## MCP核心功能
 
-#### Advantages:
-- **Data Privacy**: Runs on your infrastructure, ensuring full control over ERP data.
-- **Customization**: Llama 3.1 can be fine-tuned with domain-specific knowledge, allowing it to provide accurate responses tailored to Moqui’s ERP functionalities.
-- **Scalable**: Supports private training, so you can periodically update the model with new ERP data as business needs evolve.
-
-### Step 2: Integration Using ollama4j Plugin
-You will integrate **Ollama** into **Moqui-WeChat** via the **ollama4j** plugin, which facilitates API interactions between the WeChat interface, Moqui’s ERP, and Ollama’s AI capabilities.
-
-1. **WeChat Request Handler**:
-   - Create a **request handler** in Moqui that captures questions from WeChat users, authenticates them, retrieves user roles, and sends the query to the Llama 3.1 model via the ollama4j plugin.
-   - Example: A WeChat user asks about their department’s inventory status. Moqui fetches the user's role and filters the request based on their permissions before querying Llama 3.1.
-
-2. **Response Processing and Filtering**:
-   - After receiving the AI’s response, implement logic in Moqui to filter the information based on the user’s permissions (role-based access), ensuring users see only the data they are authorized to access.
-
-3. **API-Based Interaction**:
-   - Use the **ollama4j** plugin to handle API calls between Moqui and Ollama. When a WeChat user asks a question, the plugin sends the query to the Llama 3.1 model and returns the filtered result to Moqui for further processing before displaying it on WeChat.
-
-### Step 3: Customization for Role-Based Access
-Moqui’s **Party Authority** system must be integrated with the AI responses to ensure that users only see information permitted by their roles.
-
-- **Role and Permission Mapping**: Each WeChat user’s role (e.g., warehouse manager) is mapped to specific permissions within Moqui’s Party Authority framework.
-- **Response Filtering**: Moqui’s service layer filters the AI responses based on these permissions, allowing the AI to retrieve only the relevant data.
-
-### Step 4: Data Training and Maintenance
-To ensure the AI stays updated with current ERP data, you will need a regular training schedule for the Llama 3.1 model.
-
-- **Automated Data Updates**: Build a mechanism within Moqui to periodically extract updated ERP data (e.g., inventory, financial reports) and use it to retrain the Llama 3.1 model.
-- **Data Privacy Compliance**: As you own the infrastructure, Ollama can securely handle sensitive ERP data without concerns over third-party data exposure.
-
-### Step 5: Implementation Plan
-
-1. **API Setup**: Use the **ollama4j plugin** to establish API connections between Moqui, WeChat, and Ollama, enabling smooth data flow for natural language queries.
-2. **Role-Based Filtering**: Implement Moqui’s logic for filtering responses based on the user’s Party Authority roles.
-3. **Regular Data Training**: Build a pipeline that regularly trains Llama 3.1 with ERP updates to ensure accurate and current AI responses.
-
+### 消息处理流程
+```mermaid
+sequenceDiagram
+    participant WeChat
+    participant MCP
+    participant Ollama
+    participant MoquiERP
+    
+    WeChat->>MCP: 用户消息(XML)
+    MCP->>Ollama: 意图识别请求
+    Ollama-->>MCP: 意图分类结果
+    alt ERP操作
+        MCP->>MoquiERP: 调用ServiceFacade
+        MoquiERP-->>MCP: 操作结果
+    else AI查询
+        MCP->>ChromaDB: 向量检索
+        ChromaDB-->>MCP: 参考数据
+        MCP->>Ollama: 生成回答
+    end
+    MCP->>WeChat: 最终响应
+    
 ---
 
 This approach enables a private, secure, and scalable AI-powered WeChat interaction system within the Moqui ERP environment using **Ollama with Llama 3.1** and the **ollama4j plugin**.
@@ -136,25 +120,3 @@ String query = "查询东莞常平镇的刘文博手机号";
 Collection.QueryResponse qr = collection.query(Arrays.asList(query), 5, null, null, null);
 ```
 
-## MCP核心功能
-
-### 消息处理流程
-```mermaid
-sequenceDiagram
-    participant WeChat
-    participant MCP
-    participant Ollama
-    participant MoquiERP
-    
-    WeChat->>MCP: 用户消息(XML)
-    MCP->>Ollama: 意图识别请求
-    Ollama-->>MCP: 意图分类结果
-    alt ERP操作
-        MCP->>MoquiERP: 调用ServiceFacade
-        MoquiERP-->>MCP: 操作结果
-    else AI查询
-        MCP->>ChromaDB: 向量检索
-        ChromaDB-->>MCP: 参考数据
-        MCP->>Ollama: 生成回答
-    end
-    MCP->>WeChat: 最终响应
