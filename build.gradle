@@ -54,10 +54,6 @@ dependencies {
     // 新增MCP核心依赖
     implementation 'com.google.guava:guava:31.1-jre'
     implementation 'org.apache.camel:camel-core:3.20.3' // 用于流程编排
-
-    // 原wechat依赖保留
-    implementation 'io.github.ollama4j:ollama4j:1.1.0'
-    implementation 'io.github.amikos-tech:chromadb-java-client:0.2.1'
 }
 
 // by default the Java plugin runs test on build, change to not do that (only run test if explicit task)
@@ -86,7 +82,7 @@ test {
     maxParallelForks 1
 
     dependsOn cleanTest
-    include '**/WechatSuite.class'
+    include '**/moqui-wechatSuite.class'
 
     systemProperty 'moqui.runtime', moquiDir.absolutePath + '/runtime'
     systemProperty 'moqui.conf', 'conf/MoquiDevConf.xml'

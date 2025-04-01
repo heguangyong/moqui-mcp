@@ -1,9 +1,8 @@
-<component name="moqui-mcp" version="2.0.0">
-    <depends-on component="moqui-erl"/>
-    <tool-factory name="McpCoordinator"
-                  class="org.moqui.mcp.core.McpToolFactory"/>
-    <webapp name="mcp-web">
-        <servlet name="McpWechatServlet"
-                 class="org.moqui.mcp.wechat.McpWechatServlet"/>
-    </webapp>
+<?xml version="1.0" encoding="UTF-8"?>
+<component xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/moqui-conf-3.xsd"
+           name="moqui-mcp" version="1.0.0">
+    <depends-on name="moqui-framework"/>
+    <depends-on name="moqui-service"/>
+    <depends-on name="moqui-entity"/>
 </component>
