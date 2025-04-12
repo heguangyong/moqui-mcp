@@ -1,5 +1,25 @@
 ## MCP核心功能
+```mermaid
+flowchart TD
+subgraph MoquiFramework
+MCP[moqui-mcp组件]
+end
 
+    subgraph MCP内部结构
+        direction TB
+        MCP --> Tools[工具层]
+        MCP --> Services[服务层]
+        MCP --> Entities[实体层]
+        MCP --> Scripts[脚本层]
+    end
+
+    Tools --> Ollama4J
+    Tools --> ChromaClient
+    Services --> AI_Service
+    Services --> VectorDB_Service
+    Entities --> KnowledgeBase
+    Scripts --> InitData
+```
 ### 消息处理流程
 ```mermaid
 sequenceDiagram

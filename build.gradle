@@ -52,6 +52,7 @@ dependencies {
 
     // Add moqui-mcp dependencies here
     // 新增MCP核心依赖
+    implementation 'io.modelcontextprotocol.sdk:mcp:0.8.1'
     implementation 'com.google.guava:guava:31.1-jre'
     implementation 'org.apache.camel:camel-core:3.20.3' // 用于流程编排
 }
