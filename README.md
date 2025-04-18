@@ -1,3 +1,42 @@
+##统一平台架构设计
+```mermaid
+flowchart TD
+    subgraph 内部系统[结构化统一信息化系统 - Moqui Core]
+        direction TB
+        A[业务流程引擎] -->|执行| B[服务编排]
+        B --> C[实体数据模型]
+        C --> D[规则引擎]
+        D --> E[事务管理]
+        E --> F[(统一数据仓库)]
+    end
+
+    subgraph 资源集成[外部资源集成 - Moqui-Camel]
+        direction TB
+        G[ERP系统适配器] --> H[数据标准化管道]
+        I[CRM系统适配器] --> H
+        J[IoT设备网关] --> H
+        K[第三方API] --> H
+        H -->|ETL| F
+        H -->|实时消息| M[消息总线]
+    end
+
+    subgraph 智能协同[大模型生态 - Moqui-MCP]
+        direction TB
+        L[自然语言接口] --> N[AI决策中心]
+        O[预测分析引擎] --> N
+        P[知识图谱] --> N
+        N --> Q[智能工作流]
+        Q -->|优化建议| B
+        Q -->|动态规则| D
+    end
+
+    F -->|结构化数据| N
+    M -->|事件驱动| N
+    N -->|增强决策| B
+    B -->|执行结果| G
+    B -->|服务调用| K
+```
+
 ## MCP核心功能
 ```mermaid
 flowchart TD
