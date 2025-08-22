@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        include-child-content="true" require-authentication="false" standalone="true" screen-theme-type-enum-id="STT_POP_COMMERCE">
+    <subscreens default-item="home"/>
+    <widgets>
+        <render-mode><text type="html" location="component://moqui-mcp/screen/McpSite/includes/Header.html.ftl"/></render-mode>
+
+        <subscreens-active/>
+
+        <render-mode><text type="html" location="component://moqui-mcp/screen/McpSite/includes/Footer.html.ftl"/></render-mode>
+    </widgets>
+</screen>

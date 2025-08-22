@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <!-- 通用对话接口 -->
+    <service verb="chat" noun="Message" authenticate="false">
+        <description>通用对话接口，支持多种客户端</description>
+        <in-parameters>
+            <parameter name="sessionId"/>
+            <parameter name="message" required="true"/>
+            <parameter name="platform" default-value="web"/>
+            <parameter name="userId"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="response"/>
+            <parameter name="sessionId"/>
+            <parameter name="currentPhase"/>
+        </out-parameters>
+        <actions>
+            <!-- 如果没有sessionId，创建新会话 -->
+            <if condition="!sessionId">
+                <service-call name="mcp.createDialogSession"
+                              in-map="[customerId: userId ?: 'ANONYMOUS']"
+                              out-map="context"/>
+            </if>
+
+            <!-- 处理消息 -->
+            <service-call name="mcp.processDialog" in-map="context" out-map="context"/>
+
+            <set field="response" from="aiResponse"/>
+        </actions>
+    </service>
+
+    <!-- 获取会话信息 -->
+    <service verb="get" noun="DialogSession" authenticate="false">
+        <in-parameters>
+            <parameter name="sessionId" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="session"/>
+            <parameter name="messages"/>
+        </out-parameters>
+        <actions>
+            <entity-find-one entity-name="McpDialogSession" value-field="session">
+                <field-map field-name="sessionId"/>
+            </entity-find-one>
+
+            <entity-find entity-name="McpDialogMessage" list="messages">
+                <econdition field-name="sessionId"/>
+                <order-by field-name="processedDate"/>
+            </entity-find>
+        </actions>
+    </service>
+
+    <!-- 微信验证接口 -->
+    <service verb="handle" noun="WechatVerification" authenticate="false">
+        <description>处理微信公众号验证</description>
+        <in-parameters>
+            <parameter name="signature"/>
+            <parameter name="timestamp"/>
+            <parameter name="nonce"/>
+            <parameter name="echostr"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="response"/>
+        </out-parameters>
+        <actions>
+            <!-- 这里需要实现微信签名验证逻辑 -->
+            <set field="response" from="echostr"/>
+        </actions>
+    </service>
+
+    <!-- 微信消息处理接口 -->
+    <service verb="handle" noun="WechatMessage" authenticate="false">
+        <description>处理微信公众号消息</description>
+        <in-parameters>
+            <parameter name="signature"/>
+            <parameter name="timestamp"/>
+            <parameter name="nonce"/>
+            <parameter name="openid"/>
+            <!-- 微信消息内容 -->
+            <parameter name="xml"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="response"/>
+        </out-parameters>
+        <actions>
+            <service-call name="mcp.WechatService.processMessage" in-map="context" out-map="context"/>
+        </actions>
+    </service>
+
+    <!-- Telegram消息处理接口 -->
+    <service verb="handle" noun="TelegramMessage" authenticate="false">
+        <description>处理Telegram Bot消息</description>
+        <in-parameters>
+            <parameter name="update_id"/>
+            <parameter name="message"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="response"/>
+        </out-parameters>
+        <actions>
+            <service-call name="mcp.TelegramService.processMessage" in-map="context" out-map="context"/>
+        </actions>
+    </service>
+
+</services>

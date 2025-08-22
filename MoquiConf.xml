@@ -1,15 +1,12 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!-- No copyright or license for configuration file, details here are not considered a creative work. -->
 <moqui-conf xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/moqui-conf-3.xsd">
-    <tools>
-        <tool-factory class="org.moqui.mcp.WeChatToolFactory" init-priority="20" disabled="false"/>
-        <!-- 在moqui-conf.xml中添加 -->
-        <tool-factory class="org.moqui.mcp.monitor.McpMetricsTool" init-priority="90" disabled="false"/>
-    </tools>
-    <webapp-list>
-        <webapp name="webroot">
-            <servlet name="MoquiWechatServlet" class="org.moqui.mcp.MoquiWechatServlet" load-on-startup="1">
-                <url-pattern>/wechat/callback</url-pattern></servlet>
-        </webapp>
-    </webapp-list>
+    <screen-facade>
+        <screen location="component://webroot/screen/webroot.xml">
+            <subscreens-item name="mcp" location="component://moqui-mcp/screen/McpSite.xml"/>
+        </screen>
+        <screen location="component://webroot/screen/webroot/apps.xml">
+            <subscreens-item name="mcp" menu-title="AI Marketing Assistant" menu-index="98" location="component://moqui-mcp/screen/McpDialogScreen.xml"/>
+        </screen>
+    </screen-facade>
 </moqui-conf>

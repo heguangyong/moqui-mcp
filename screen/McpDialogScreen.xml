@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="AI营销助手" default-menu-index="1">
+
+    <parameter name="sessionId"/>
+
+    <transition name="processDialog" method="post">
+        <actions>
+            <service-call name="mcp.processDialog" in-map="context" out-map="context"/>
+            <script>
+                if (context.error) {
+                ec.message.addError(context.error)
+                } else {
+                ec.message.addMessage("处理完成")
+                }
+            </script>
+        </actions>
+        <default-response url="."/>
+    </transition>
+
+    <transition name="createSession" method="post">
+        <actions>
+            <service-call name="mcp.createDialogSession" in-map="context" out-map="context"/>
+        </actions>
+        <default-response url="." parameter-map="[sessionId:sessionId]"/>
+    </transition>
+
+    <actions>
+        <if condition="!sessionId">
+            <return/>
+        </if>
+
+        <!-- 获取会话信息 -->
+        <entity-find-one entity-name="McpDialogSession" value-field="session">
+            <field-map field-name="sessionId" from="sessionId"/>
+        </entity-find-one>
+
+        <!-- 获取对话历史 -->
+        <entity-find entity-name="McpDialogMessage" list="dialogMessages">
+            <econdition field-name="sessionId" from="sessionId"/>
+            <order-by field-name="processedDate"/>
+        </entity-find>
+    </actions>
+
+    <widgets>
+        <container-row>
+            <row-col lg="8" md="10" sm="12">
+                <container>
+                    <label text="AI营销项目助手" type="h2"/>
+
+                    <!-- 会话创建区域 -->
+                    <section name="CreateSessionSection">
+                        <condition><expression>!sessionId</expression></condition>
+                        <widgets>
+                            <form-single name="CreateSessionForm" transition="createSession">
+                                <field name="customerId">
+                                    <default-field title="客户ID">
+                                        <text-line size="20"/>
+                                    </default-field>
+                                </field>
+                                <field name="industry">
+                                    <default-field title="行业">
+                                        <drop-down>
+                                            <option key="food" text="食品生鲜"/>
+                                            <option key="health" text="保健品"/>
+                                            <option key="beauty" text="美妆护肤"/>
+                                            <option key="flower" text="鲜花礼品"/>
+                                            <option key="other" text="其他"/>
+                                        </drop-down>
+                                    </default-field>
+                                </field>
+                                <field name="initialContext">
+                                    <default-field title="初始描述">
+                                        <text-area rows="3"/>
+                                    </default-field>
+                                </field>
+                                <field name="submitButton">
+                                    <default-field title="">
+                                        <submit text="开始对话"/>
+                                    </default-field>
+                                </field>
+                            </form-single>
+                        </widgets>
+                    </section>
+
+                    <!-- 对话界面 -->
+                    <section name="DialogSection">
+                        <condition><expression>sessionId &amp;&amp; session</expression></condition>
+                        <widgets>
+                            <!-- 项目状态显示 -->
+                            <container>
+                                <container-row>
+                                    <row-col lg="6">
+                                        <label text="会话ID: ${sessionId}"/>
+                                    </row-col>
+                                    <row-col lg="6">
+                                        <label text="当前阶段: ${session.currentPhase}"/>
+                                    </row-col>
+                                </container-row>
+                                <container-row>
+                                    <row-col lg="12">
+                                        <label text="状态: ${session.status}"/>
+                                    </row-col>
+                                </container-row>
+                            </container>
+
+                            <!-- 对话历史 -->
+                            <container>
+                                <label text="对话历史" type="h4"/>
+                                <section-iterate name="DialogHistorySection" list="dialogMessages" entry="message">
+                                    <widgets>
+                                        <!-- 用户消息 -->
+                                        <container>
+                                            <container>
+                                                <label text="用户: ${message.content}"/>
+                                            </container>
+                                            <!-- AI响应 -->
+                                            <container>
+                                                <label text="AI助手: ${message.aiResponse}"/>
+                                            </container>
+                                        </container>
+                                    </widgets>
+                                </section-iterate>
+                            </container>
+
+                            <!-- 消息输入区域 -->
+                            <form-single name="DialogForm" transition="processDialog">
+                                <field name="sessionId"><default-field><hidden/></default-field></field>
+                                <field name="message">
+                                    <default-field title="您的消息">
+                                        <text-area rows="3" cols="80"/>
+                                    </default-field>
+                                </field>
+                                <field name="submitButton">
+                                    <default-field title="">
+                                        <submit text="发送消息"/>
+                                    </default-field>
+                                </field>
+                            </form-single>
+                        </widgets>
+                    </section>
+                </container>
+            </row-col>
+        </container-row>
+    </widgets>
+</screen>

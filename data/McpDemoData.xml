@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-facade-xml type="demo">
+
+    <!-- 项目模板数据 -->
+    <McpProjectTemplate templateId="FOOD_MARKETING" templateName="食品生鲜营销模板"
+                        industry="food" description="适用于生鲜食品类小企业的营销解决方案"
+                        isActive="Y" createdDate="2024-01-01 00:00:00">
+        <phaseTemplate><![CDATA[
+{
+  "requirement": {
+    "questions": [
+      "您的主要产品是什么？（蔬菜、水果、肉类等）",
+      "目标客户群体是什么？（社区居民、餐饮商户等）",
+      "现在主要通过什么方式销售？",
+      "希望通过数字化解决什么问题？"
+    ],
+    "outputs": ["产品清单", "目标客户画像", "业务流程图"]
+  },
+  "design": {
+    "features": [
+      "微信公众号自动回复和菜单",
+      "小程序商品展示和下单",
+      "库存管理系统",
+      "配送管理",
+      "客户积分和优惠券",
+      "数据分析看板"
+    ]
+  },
+  "task": {
+    "phases": [
+      "第一阶段：公众号基础功能（1-2周）",
+      "第二阶段：小程序开发（2-3周）",
+      "第三阶段：后台管理系统（1-2周）",
+      "第四阶段：测试和上线（1周）"
+    ]
+  }
+}
+        ]]></phaseTemplate>
+    </McpProjectTemplate>
+
+    <McpProjectTemplate templateId="HEALTH_MARKETING" templateName="保健品营销模板"
+                        industry="health" description="适用于保健品销售的营销解决方案"
+                        isActive="Y" createdDate="2024-01-01 00:00:00">
+        <phaseTemplate><![CDATA[
+{
+  "requirement": {
+    "questions": [
+      "您销售的保健品类型？",
+      "客户主要年龄段和特征？",
+      "现有的销售渠道？",
+      "客户教育和信任建立的需求？"
+    ],
+    "outputs": ["产品分类", "客户分层", "信任建设策略"]
+  },
+  "design": {
+    "features": [
+      "产品知识库和问答",
+      "客户健康档案管理",
+      "专家咨询预约",
+      "会员等级体系",
+      "内容营销系统",
+      "销售数据分析"
+    ]
+  }
+}
+        ]]></phaseTemplate>
+    </McpProjectTemplate>
+
+    <McpProjectTemplate templateId="FLOWER_MARKETING" templateName="鲜花礼品营销模板"
+                        industry="flower" description="适用于鲜花礼品类企业的营销解决方案"
+                        isActive="Y" createdDate="2024-01-01 00:00:00">
+        <phaseTemplate><![CDATA[
+{
+  "requirement": {
+    "questions": [
+      "主要经营的花卉和礼品类型？",
+      "重要节日和季节性需求？",
+      "配送范围和时效要求？",
+      "个性化定制需求？"
+    ],
+    "outputs": ["产品季节性规划", "配送策略", "个性化方案"]
+  },
+  "design": {
+    "features": [
+      "节日提醒和推荐",
+      "个性化定制界面",
+      "配送时间管理",
+      "客户偏好记录",
+      "营销活动管理",
+      "库存预警系统"
+    ]
+  }
+}
+        ]]></phaseTemplate>
+    </McpProjectTemplate>
+
+    <!-- 示例客户数据 -->
+    <mantle.party.Party partyId="DEMO_CUSTOMER_001" partyTypeEnumId="PtyPerson"
+                        firstName="张" lastName="老板"/>
+    <mantle.party.contact.PartyContactMech partyId="DEMO_CUSTOMER_001"
+                                           contactMechId="DEMO_EMAIL_001"
+                                           contactMechPurposeId="EmailPrimary"/>
+    <mantle.party.contact.ContactMech contactMechId="DEMO_EMAIL_001"
+                                      contactMechTypeEnumId="CmtEmailAddress"
+                                      infoString="demo@example.com"/>
+
+</entity-facade-xml>
