@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <!-- 对话处理服务 -->
+    <service verb="process" noun="Dialog">
+        <description>处理用户对话消息</description>
+        <in-parameters>
+            <parameter name="sessionId" required="true"/>
+            <parameter name="message" required="true"/>
+            <parameter name="messageType" default-value="user"/>
+            <parameter name="customerId"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="aiResponse"/>
+            <parameter name="nextAction"/>
+            <parameter name="currentPhase"/>
+        </out-parameters>
+        <actions>
+            <service-call name="mcp.McpDialogService.processUserMessage" in-map="context" out-map="context"/>
+        </actions>
+    </service>
+
+    <!-- 创建新会话 -->
+    <service verb="create" noun="DialogSession">
+        <in-parameters>
+            <parameter name="customerId" required="true"/>
+            <parameter name="industry"/>
+            <parameter name="initialContext"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="sessionId"/>
+        </out-parameters>
+        <actions>
+            <set field="sessionId" from="ec.entity.sequencedIdPrimary"/>
+            <service-call name="create#McpDialogSession" in-map="[sessionId: sessionId, customerId: customerId, 
+                         currentPhase: 'requirement', status: 'active', context: initialContext ?: '',
+                         createdDate: ec.user.nowTimestamp, lastModifiedDate: ec.user.nowTimestamp]"/>
+        </actions>
+    </service>
+
+    <!-- 更新项目阶段 -->
+    <service verb="update" noun="ProjectPhase">
+        <in-parameters>
+            <parameter name="sessionId" required="true"/>
+            <parameter name="newPhase" required="true"/>
+            <parameter name="phaseData"/>
+        </in-parameters>
+        <actions>
+            <service-call name="update#McpDialogSession" 
+                         in-map="[sessionId: sessionId, currentPhase: newPhase, 
+                                 lastModifiedDate: ec.user.nowTimestamp]"/>
+            <if condition="phaseData">
+                <service-call name="mcp.McpProjectService.updatePhaseData" 
+                             in-map="[sessionId: sessionId, phase: newPhase, data: phaseData]"/>
+            </if>
+        </actions>
+    </service>
+
+    <!-- AI决策审核 -->
+    <service verb="review" noun="AiDecision">
+        <in-parameters>
+            <parameter name="decisionId" required="true"/>
+            <parameter name="reviewStatus" required="true"/>
+            <parameter name="reviewerId" required="true"/>
+            <parameter name="reviewComments"/>
+        </in-parameters>
+        <actions>
+            <service-call name="update#McpAiDecision" 
+                         in-map="[decisionId: decisionId, humanReviewStatus: reviewStatus,
+                                 reviewerId: reviewerId, approvedDate: ec.user.nowTimestamp]"/>
+        </actions>
+    </service>
+
+</services>

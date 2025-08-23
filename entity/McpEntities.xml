@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entities xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/entity-definition-3.xsd">
+
+    <!-- AI对话会话表 -->
+    <entity entity-name="McpDialogSession" package="mcp.dialog">
+        <field name="sessionId" type="id" is-pk="true"/>
+        <field name="customerId" type="id"/>
+        <field name="projectId" type="id"/>
+        <field name="currentPhase" type="text-short"/>
+        <field name="context" type="text-long"/>
+        <field name="status" type="text-short"/>
+        <field name="createdDate" type="date-time"/>
+        <field name="lastModifiedDate" type="date-time"/>
+        <relationship type="one" related="mantle.party.Party" short-alias="customer">
+            <key-map field-name="customerId" related="partyId"/>
+        </relationship>
+        <relationship type="one" related="mantle.work.effort.WorkEffort" short-alias="project">
+            <key-map field-name="projectId" related="workEffortId"/>
+        </relationship>
+    </entity>
+
+    <!-- AI对话消息记录表 -->
+    <entity entity-name="McpDialogMessage" package="mcp.dialog">
+        <field name="messageId" type="id" is-pk="true"/>
+        <field name="sessionId" type="id"/>
+        <field name="messageType" type="text-short"/>
+        <field name="content" type="text-long"/>
+        <field name="aiResponse" type="text-long"/>
+        <field name="processedDate" type="date-time"/>
+        <relationship type="one" related="McpDialogSession" short-alias="session">
+            <key-map field-name="sessionId"/>
+        </relationship>
+    </entity>
+
+    <!-- AI决策记录表 -->
+    <entity entity-name="McpAiDecision" package="mcp.decision">
+        <field name="decisionId" type="id" is-pk="true"/>
+        <field name="sessionId" type="id"/>
+        <field name="decisionType" type="text-short"/>
+        <field name="aiRecommendation" type="text-long"/>
+        <field name="humanReviewStatus" type="text-short"/>
+        <field name="reviewerId" type="id"/>
+        <field name="approvedDate" type="date-time"/>
+        <field name="createdDate" type="date-time"/>
+        <relationship type="one" related="McpDialogSession" short-alias="session">
+            <key-map field-name="sessionId"/>
+        </relationship>
+    </entity>
+
+    <!-- 项目模板表 -->
+    <entity entity-name="McpProjectTemplate" package="mcp.template">
+        <field name="templateId" type="id" is-pk="true"/>
+        <field name="templateName" type="text-medium"/>
+        <field name="industry" type="text-short"/>
+        <field name="description" type="text-long"/>
+        <field name="phaseTemplate" type="text-very-long"/>
+        <field name="isActive" type="text-indicator"/>
+        <field name="createdDate" type="date-time"/>
+    </entity>
+
+</entities>
