@@ -129,11 +129,18 @@ public class McpProjectService {
     }
 
     private String getPhaseDescription(String phase) {
-        return switch (phase) {
-            case "requirement" -> "需求确认阶段";
-            case "design" -> "功能设计阶段";
-            case "task" -> "任务分解阶段";
-            default -> "未知阶段";
-        };
+        if (phase == null) return "未知阶段";
+
+        switch (phase) {
+            case "requirement":
+                return "需求收集确认";
+            case "design":
+                return "功能设计";
+            case "task":
+                return "任务分解";
+            default:
+                return "未知阶段";
+        }
     }
+
 }
