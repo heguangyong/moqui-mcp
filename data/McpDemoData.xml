@@ -94,14 +94,40 @@
         ]]></phaseTemplate>
     </McpProjectTemplate>
 
-    <!-- 示例客户数据 -->
+    <!-- 确保基础枚举数据存在 -->
+    <!-- 1. 首先创建枚举类型 -->
+    <moqui.basic.EnumerationType enumTypeId="ContactMechPurposeType"
+                                 description="Contact Mechanism Purpose"/>
+
+    <!-- 2. 然后创建具体的枚举值 -->
+    <moqui.basic.Enumeration enumId="EmailPrimary" enumTypeId="ContactMechPurposeType"
+                             description="Primary Email"/>
+
+    <!-- 3. 确保其他可能需要的枚举类型和值存在 -->
+    <moqui.basic.EnumerationType enumTypeId="ContactMechType"
+                                 description="Contact Mechanism Type"/>
+    <moqui.basic.Enumeration enumId="CmtEmailAddress" enumTypeId="ContactMechType"
+                             description="Email Address"/>
+
+    <moqui.basic.EnumerationType enumTypeId="PartyType"
+                                 description="Party Type"/>
+    <moqui.basic.Enumeration enumId="PtyPerson" enumTypeId="PartyType"
+                             description="Person"/>
+
+    <!-- 示例客户数据 - 正确的依赖顺序 -->
+    <!-- 1. 首先创建Party -->
     <mantle.party.Party partyId="DEMO_CUSTOMER_001" partyTypeEnumId="PtyPerson"
                         firstName="张" lastName="老板"/>
-    <mantle.party.contact.PartyContactMech partyId="DEMO_CUSTOMER_001"
-                                           contactMechId="DEMO_EMAIL_001"
-                                           contactMechPurposeId="EmailPrimary"/>
+
+    <!-- 2. 然后创建ContactMech -->
     <mantle.party.contact.ContactMech contactMechId="DEMO_EMAIL_001"
                                       contactMechTypeEnumId="CmtEmailAddress"
                                       infoString="demo@example.com"/>
+
+    <!-- 3. 最后创建关联关系，并添加必需的fromDate字段 -->
+    <mantle.party.contact.PartyContactMech partyId="DEMO_CUSTOMER_001"
+                                           contactMechId="DEMO_EMAIL_001"
+                                           contactMechPurposeId="EmailPrimary"
+                                           fromDate="2024-01-01 00:00:00"/>
 
 </entity-facade-xml>
