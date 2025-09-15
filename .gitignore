@@ -44,3 +44,17 @@ Desktop.ini
 
 # Linux auto files
 *~
+/lib/converter-jackson-2.9.0.jar
+/lib/gson-2.10.1.jar
+/lib/kotlin-stdlib-1.9.10.jar
+/lib/kotlin-stdlib-common-1.9.10.jar
+/lib/kotlin-stdlib-jdk7-1.9.10.jar
+/lib/kotlin-stdlib-jdk8-1.9.10.jar
+/lib/langchain4j-0.33.0.jar
+/lib/langchain4j-core-0.33.0.jar
+/lib/langchain4j-ollama-0.33.0.jar
+/lib/moqui-mcp-1.0.0.jar
+/lib/okhttp-4.12.0.jar
+/lib/okio-jvm-3.6.0.jar
+/lib/opennlp-tools-1.9.4.jar
+/lib/retrofit-2.9.0.jar
