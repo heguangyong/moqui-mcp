@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd"
+         package-name="moqui.jwt">
+
+    <!-- JWT Authentication Services -->
+    <service verb="authenticate" noun="User" authenticate="false">
+        <description>Authenticate user and return JWT token</description>
+        <in-parameters>
+            <parameter name="username" required="true"/>
+            <parameter name="password" required="true"/>
+            <parameter name="merchantId" default-value="DEMO_MERCHANT"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="accessToken"/>
+            <parameter name="refreshToken"/>
+            <parameter name="expiresIn" type="Long"/>
+            <parameter name="tokenType" default-value="Bearer"/>
+            <parameter name="success" type="Boolean"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                import io.jsonwebtoken.Jwts
+                import io.jsonwebtoken.SignatureAlgorithm
+                import java.util.Date
+                import java.security.Key
+                import javax.crypto.spec.SecretKeySpec
+
+                ec.logger.info("=== JWT Authentication Request ===")
+                ec.logger.info("Username: ${username}, MerchantId: ${merchantId}")
+
+                success = false
+                message = "Authentication failed"
+
+                // Authenticate against real user accounts
+                try {
+                    // Attempt user authentication using Moqui's standard user services
+                    def authResult = ec.service.sync().name("org.moqui.impl.UserServices.login#User")
+                        .parameters([username: username, password: password])
+                        .disableAuthz().call()
+
+                    if (authResult.userId) {
+                        try {
+                            // Get JWT configuration
+                            String secret = ec.factory.getSystemProperty("moqui.jwt.secret") ?: "moqui-jwt-secret-key-change-in-production-2024"
+                            String issuer = ec.factory.getSystemProperty("moqui.jwt.issuer") ?: "moqui-dev"
+                            String audience = ec.factory.getSystemProperty("moqui.jwt.audience") ?: "moqui-app"
+                            String algorithm = ec.factory.getSystemProperty("moqui.jwt.algorithm") ?: "HS256"
+                            int expireMinutes = (ec.factory.getSystemProperty("moqui.jwt.access.expire.minutes") ?: "120") as Integer
+
+                            // Create signing key
+                            Key signingKey = new SecretKeySpec(secret.getBytes(), algorithm)
+
+                            // Calculate expiration
+                            long nowMillis = System.currentTimeMillis()
+                            Date now = new Date(nowMillis)
+                            Date expiration = new Date(nowMillis + (expireMinutes * 60 * 1000))
+
+                            // Build JWT claims with real user data
+                            def claims = [
+                                sub: authResult.userId,
+                                iss: issuer,
+                                aud: audience,
+                                userId: authResult.userId,
+                                username: username,
+                                merchantId: merchantId,
+                                type: "access",
+                                clientIp: ec.web?.request?.getRemoteAddr() ?: "unknown",
+                                tokenId: System.currentTimeMillis().toString()
+                            ]
+
+                            // Generate access token
+                            accessToken = Jwts.builder()
+                                .setClaims(claims)
+                                .setIssuedAt(now)
+                                .setExpiration(expiration)
+                                .setNotBefore(now)
+                                .signWith(SignatureAlgorithm.valueOf(algorithm), signingKey)
+                                .compact()
+
+                            // Generate refresh token (longer expiration)
+                            Date refreshExpiration = new Date(nowMillis + (7 * 24 * 60 * 60 * 1000)) // 7 days
+                            String refreshTokenId = System.currentTimeMillis().toString()
+                            refreshToken = Jwts.builder()
+                                .setSubject(authResult.userId)
+                                .setIssuer(issuer)
+                                .setAudience(audience)
+                                .claim("userId", authResult.userId)
+                                .claim("type", "refresh")
+                                .claim("clientIp", ec.web?.request?.getRemoteAddr() ?: "unknown")
+                                .claim("tokenId", refreshTokenId)
+                                .setIssuedAt(now)
+                                .setExpiration(refreshExpiration)
+                                .setNotBefore(now)
+                                .signWith(SignatureAlgorithm.valueOf(algorithm), signingKey)
+                                .compact()
+
+                            expiresIn = expireMinutes * 60L // seconds
+                            tokenType = "Bearer"
+                            success = true
+                            message = "Login successful"
+
+                            ec.logger.info("=== JWT tokens generated successfully ===")
+                            ec.logger.info("User ID: ${authResult.userId}, Username: ${username}")
+                            ec.logger.info("Access token expires in: ${expireMinutes} minutes")
+
+                        } catch (Exception e) {
+                            ec.logger.error("JWT token generation failed", e)
+                            message = "Token generation failed: ${e.message}"
+                        }
+                    } else {
+                        message = "Invalid username or password"
+                        ec.logger.warn("Authentication failed for username: ${username}")
+                    }
+                } catch (Exception e) {
+                    ec.logger.error("User authentication error", e)
+                    message = "Authentication failed: ${e.message}"
+                }
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="refresh" noun="Token" authenticate="false">
+        <description>Refresh JWT access token using refresh token</description>
+        <in-parameters>
+            <parameter name="refreshToken" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="accessToken"/>
+            <parameter name="expiresIn" type="Long"/>
+            <parameter name="tokenType" default-value="Bearer"/>
+            <parameter name="success" type="Boolean"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                import io.jsonwebtoken.Jwts
+                import io.jsonwebtoken.SignatureAlgorithm
+                import io.jsonwebtoken.Claims
+                import java.util.Date
+                import java.security.Key
+                import javax.crypto.spec.SecretKeySpec
+
+                success = false
+                message = "Token refresh failed"
+
+                try {
+                    // Get JWT configuration
+                    String secret = ec.factory.getSystemProperty("moqui.jwt.secret")
+                    String issuer = ec.factory.getSystemProperty("moqui.jwt.issuer") ?: "moqui-dev"
+                    String audience = ec.factory.getSystemProperty("moqui.jwt.audience") ?: "moqui-app"
+                    int expireMinutes = (ec.factory.getSystemProperty("moqui.jwt.access.expire.minutes") ?: "120") as Integer
+
+                    // Create signing key
+                    Key signingKey = new SecretKeySpec(secret.getBytes(), "HS256")
+
+                    // Parse and validate refresh token
+                    Claims claims = Jwts.parser()
+                        .setSigningKey(signingKey)
+                        .parseClaimsJws(refreshToken)
+                        .getBody()
+
+                    // Verify token type
+                    if (claims.get("type") != "refresh") {
+                        throw new Exception("Invalid token type")
+                    }
+
+                    // Extract user info
+                    String username = claims.getSubject()
+                    String merchantId = claims.get("merchantId", String.class)
+
+                    // Generate new access token
+                    long nowMillis = System.currentTimeMillis()
+                    Date now = new Date(nowMillis)
+                    Date expiration = new Date(nowMillis + (expireMinutes * 60 * 1000))
+
+                    def newClaims = [
+                        sub: username,
+                        iss: issuer,
+                        aud: audience,
+                        merchantId: merchantId,
+                        roles: ["USER", "MERCHANT"],
+                        permissions: ["marketplace:read", "marketplace:write", "mcp:chat"]
+                    ]
+
+                    accessToken = Jwts.builder()
+                        .setClaims(newClaims)
+                        .setIssuedAt(now)
+                        .setExpiration(expiration)
+                        .signWith(SignatureAlgorithm.HS256, signingKey)
+                        .compact()
+
+                    expiresIn = expireMinutes * 60L
+                    tokenType = "Bearer"
+                    success = true
+                    message = "Token refreshed successfully"
+
+                    ec.logger.info("JWT token refreshed for user: ${username}")
+
+                } catch (Exception e) {
+                    ec.logger.error("JWT token refresh failed", e)
+                    message = "Token refresh failed: ${e.message}"
+                }
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="verify" noun="Token" authenticate="false">
+        <description>Verify JWT token and extract claims</description>
+        <in-parameters>
+            <parameter name="token" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="valid" type="Boolean"/>
+            <parameter name="username"/>
+            <parameter name="merchantId"/>
+            <parameter name="roles" type="List"/>
+            <parameter name="permissions" type="List"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                import io.jsonwebtoken.Jwts
+                import io.jsonwebtoken.Claims
+                import java.security.Key
+                import javax.crypto.spec.SecretKeySpec
+
+                valid = false
+                message = "Token verification failed"
+
+                try {
+                    String secret = ec.factory.getSystemProperty("moqui.jwt.secret")
+                    Key signingKey = new SecretKeySpec(secret.getBytes(), "HS256")
+
+                    Claims claims = Jwts.parser()
+                        .setSigningKey(signingKey)
+                        .parseClaimsJws(token)
+                        .getBody()
+
+                    username = claims.getSubject()
+                    merchantId = claims.get("merchantId", String.class)
+                    roles = claims.get("roles", List.class) ?: []
+                    permissions = claims.get("permissions", List.class) ?: []
+
+                    valid = true
+                    message = "Token is valid"
+
+                } catch (Exception e) {
+                    ec.logger.warn("JWT token verification failed: ${e.message}")
+                    message = "Invalid token: ${e.message}"
+                }
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="logout" noun="User" authenticate="false">
+        <description>Logout user (JWT is stateless, so this is mainly for logging)</description>
+        <in-parameters>
+            <parameter name="token"/>
+            <parameter name="username"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="success" type="Boolean"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                // For JWT, logout is mainly client-side token removal
+                // We can log the logout event for audit purposes
+                ec.logger.info("User logout: ${username ?: 'unknown'}")
+                success = true
+                message = "Logout successful"
+            ]]></script>
+        </actions>
+    </service>
+
+</services>

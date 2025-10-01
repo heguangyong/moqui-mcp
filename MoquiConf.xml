@@ -1,9 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- No copyright or license for configuration file, details here are not considered a creative work. -->
 <moqui-conf xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/moqui-conf-3.xsd">
+
+    <!-- JWT Authentication Filter Configuration -->
+    <webapp-list>
+        <webapp name="webroot">
+            <filter name="JwtAuthenticationFilter" class="org.moqui.impl.webapp.JwtAuthenticationFilter"/>
+            <filter-mapping name="JwtAuthenticationFilter" url-pattern="/marketplace/*"/>
+            <filter-mapping name="JwtAuthenticationFilter" url-pattern="/mcp/*"/>
+        </webapp>
+    </webapp-list>
+
     <screen-facade>
         <screen location="component://webroot/screen/webroot.xml">
             <subscreens-item name="mcp" location="component://moqui-mcp/screen/McpSite.xml"/>
+            <subscreens-item name="mcp-includes" location="component://moqui-mcp/screen/includes.xml"/>
         </screen>
         <screen location="component://webroot/screen/webroot/apps.xml">
             <subscreens-item name="mcp" menu-title="AI Marketing Assistant" menu-index="98" location="component://moqui-mcp/screen/McpDialogScreen.xml"/>

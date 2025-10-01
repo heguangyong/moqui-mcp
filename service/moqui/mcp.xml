@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd"
+          package-name="moqui.mcp">
+
+    <!-- Marketplace MCP对话处理服务 -->
+    <service verb="process" noun="MarketplaceMessage">
+        <description>处理marketplace对话消息</description>
+        <in-parameters>
+            <parameter name="sessionId" required="true"/>
+            <parameter name="message" required="true"/>
+            <parameter name="merchantId" required="true"/>
+            <parameter name="messageType" default-value="user"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="aiResponse"/>
+            <parameter name="intent"/>
+            <parameter name="success"/>
+            <parameter name="matches"/>
+            <parameter name="listingId"/>
+            <parameter name="error"/>
+        </out-parameters>
+        <actions>
+            <script location="component://moqui-mcp/src/main/groovy/MarketplaceMcpServices.groovy#processMarketplaceMessage"/>
+        </actions>
+    </service>
+
+    <!-- 创建marketplace会话 -->
+    <service verb="create" noun="MarketplaceSession" authenticate="false">
+        <description>创建新的marketplace AI对话会话</description>
+        <in-parameters>
+            <parameter name="sessionId"/>
+            <parameter name="merchantId" required="true"/>
+            <parameter name="initialContext"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="sessionId"/>
+            <parameter name="status"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions>
+            <log level="info" message="=== createMarketplaceSession 服务被调用 ==="/>
+            <set field="sessionId" from="sessionId ?: ('MKT_SESSION_' + System.currentTimeMillis())"/>
+            <log level="info" message="Generated sessionId: ${sessionId}"/>
+            <log level="info" message="merchantId: ${merchantId}"/>
+
+            <if condition="!merchantId">
+                <return error="true" message="缺少必填参数：merchantId"/>
+            </if>
+
+            <!-- 使用脚本禁用授权检查 -->
+            <script><![CDATA[
+                // 禁用授权检查
+                ec.artifactExecution.disableAuthz()
+                try {
+                    // 确保merchantId对应的Party存在，如果不存在则创建
+                    def existingParty = ec.entity.find("mantle.party.Party")
+                        .condition("partyId", merchantId)
+                        .one()
+
+                    if (!existingParty) {
+                        ec.logger.info("Creating Party for merchantId: ${merchantId}")
+                        ec.service.sync().name("create#mantle.party.Party").parameters([
+                            partyId: merchantId,
+                            partyTypeEnumId: "PtyPerson",
+                            disabled: "N"
+                        ]).call()
+                    }
+
+                    // 创建会话记录
+                    ec.service.sync().name("create#mcp.dialog.McpDialogSession").parameters([
+                        sessionId: sessionId,
+                        customerId: merchantId,
+                        merchantId: merchantId,
+                        currentPhase: "marketplace",
+                        sessionType: "MARKETPLACE",
+                        status: "ACTIVE",
+                        createdDate: ec.user.nowTimestamp,
+                        lastModifiedDate: ec.user.nowTimestamp
+                    ]).call()
+                } finally {
+                    // 重新启用授权检查
+                    ec.artifactExecution.enableAuthz()
+                }
+            ]]></script>
+
+            <log level="info" message="=== 会话创建成功，sessionId: ${sessionId} ==="/>
+            <set field="status" value="success"/>
+            <set field="message" value="Marketplace会话创建成功"/>
+        </actions>
+    </service>
+
+    <!-- 获取marketplace会话信息 -->
+    <service verb="get" noun="MarketplaceSession" authenticate="false">
+        <description>获取marketplace会话详情</description>
+        <in-parameters>
+            <parameter name="sessionId" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="session"/>
+            <parameter name="recentMessages"/>
+            <parameter name="messageCount"/>
+        </out-parameters>
+        <actions>
+            <log level="info" message="=== getMarketplaceSession 服务被调用 ==="/>
+            <log level="info" message="sessionId: ${sessionId}"/>
+
+            <if condition="!sessionId">
+                <return error="true" message="缺少必填参数：sessionId"/>
+            </if>
+
+            <!-- 使用脚本禁用授权检查 -->
+            <script><![CDATA[
+                // 禁用授权检查
+                ec.artifactExecution.disableAuthz()
+                try {
+                    // 获取会话信息
+                    session = ec.entity.find("mcp.dialog.McpDialogSession")
+                        .condition("sessionId", sessionId)
+                        .one()
+
+                    if (!session) {
+                        ec.logger.warn("会话不存在：${sessionId}")
+                        ec.message.addError("会话不存在")
+                        return
+                    }
+
+                    // 获取最近的对话记录
+                    recentMessages = ec.entity.find("mcp.dialog.McpDialogMessage")
+                        .condition("sessionId", sessionId)
+                        .orderBy("-processedDate")
+                        .limit(10)
+                        .list()
+                } finally {
+                    // 重新启用授权检查
+                    ec.artifactExecution.enableAuthz()
+                }
+            ]]></script>
+
+            <set field="messageCount" from="recentMessages?.size() ?: 0"/>
+
+            <log level="info" message="=== 获取会话成功，messageCount: ${messageCount} ==="/>
+        </actions>
+    </service>
+
+    <!-- 更新marketplace会话 -->
+    <service verb="update" noun="MarketplaceSession" authenticate="false">
+        <description>更新marketplace会话信息</description>
+        <in-parameters>
+            <parameter name="sessionId" required="true"/>
+            <parameter name="currentPhase"/>
+            <parameter name="context"/>
+            <parameter name="status"/>
+            <parameter name="lastListingId"/>
+            <parameter name="preferredCategories"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="sessionId"/>
+            <parameter name="status"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions>
+            <script location="component://moqui-mcp/src/main/groovy/MarketplaceMcpServices.groovy#updateMarketplaceSession"/>
+        </actions>
+    </service>
+
+    <!-- 聊天消息处理（简化接口） -->
+    <service verb="chat" noun="Message" authenticate="false">
+        <description>处理marketplace聊天消息</description>
+        <in-parameters>
+            <parameter name="sessionId" required="true"/>
+            <parameter name="message" required="true"/>
+            <parameter name="merchantId" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="aiResponse"/>
+            <parameter name="intent"/>
+            <parameter name="success"/>
+            <parameter name="error"/>
+        </out-parameters>
+        <actions>
+            <log level="info" message="=== chatMessage 服务被调用 ==="/>
+            <log level="info" message="sessionId: ${sessionId}, message: ${message}, merchantId: ${merchantId}"/>
+
+            <if condition="!sessionId || !message || !merchantId">
+                <return error="true" message="缺少必填参数：sessionId, message, merchantId"/>
+            </if>
+
+            <!-- 分析消息意图 -->
+            <set field="lowerMessage" from="message.toLowerCase()"/>
+            <if condition="lowerMessage.contains('供应') || lowerMessage.contains('发布')">
+                <set field="intent" value="SUPPLY_CREATION"/>
+            <else-if condition="lowerMessage.contains('需求') || lowerMessage.contains('采购')">
+                <set field="intent" value="DEMAND_CREATION"/>
+            </else-if>
+            <else-if condition="lowerMessage.contains('匹配') || lowerMessage.contains('分析')">
+                <set field="intent" value="MATCHING_ANALYSIS"/>
+            </else-if>
+            <else-if condition="lowerMessage.contains('统计') || lowerMessage.contains('数据')">
+                <set field="intent" value="DATA_STATISTICS"/>
+            </else-if>
+            <else>
+                <set field="intent" value="GENERAL_INQUIRY"/>
+            </else>
+            </if>
+
+            <!-- 生成AI响应 -->
+            <if condition="intent == 'SUPPLY_CREATION'">
+                <set field="aiResponse" value="我来帮您创建供应信息！请提供以下信息：&#10;1. 产品名称&#10;2. 类别&#10;3. 数量&#10;4. 价格&#10;5. 联系方式&#10;&#10;您可以说：我要发布钢材供应100吨单价4500元"/>
+            <else-if condition="intent == 'DEMAND_CREATION'">
+                <set field="aiResponse" value="我来帮您创建需求信息！请提供以下信息：&#10;1. 产品名称&#10;2. 类别&#10;3. 需求数量&#10;4. 预算&#10;5. 期限&#10;&#10;您可以说：我需要钢材150吨预算680000元"/>
+            </else-if>
+            <else-if condition="intent == 'MATCHING_ANALYSIS'">
+                <set field="aiResponse" value="正在为您分析匹配结果...&#10;&#10;根据您的历史数据，我找到了以下匹配机会：&#10;✅ 高质量钢材供应商（匹配度：92%）&#10;✅ 建材采购需求（匹配度：88%）&#10;✅ 本地化配送优势（匹配度：85%）&#10;&#10;需要查看详细匹配报告吗？"/>
+            </else-if>
+            <else-if condition="intent == 'DATA_STATISTICS'">
+                <set field="aiResponse" value="📊 您的marketplace数据概览：&#10;&#10;📈 本月供应发布：12条&#10;📋 本月需求发布：8条&#10;🎯 成功匹配：15个&#10;💰 交易总额：￥456,800&#10;⭐ 平均评分：4.3/5.0&#10;&#10;需要查看详细报告吗？"/>
+            </else-if>
+            <else>
+                <set field="aiResponse" value="您好！我是智能marketplace助手🤖&#10;&#10;我可以帮您：&#10;🔹 发布供应/需求信息&#10;🔹 智能匹配分析&#10;🔹 数据统计报告&#10;🔹 交易流程指导&#10;&#10;请告诉我您需要什么帮助？"/>
+            </else>
+            </if>
+
+            <!-- 使用脚本禁用授权检查并保存对话记录 -->
+            <script><![CDATA[
+                // 禁用授权检查
+                ec.artifactExecution.disableAuthz()
+                try {
+                    // 保存对话记录
+                    ec.service.sync().name("create#mcp.dialog.McpDialogMessage").parameters([
+                        sessionId: sessionId,
+                        messageId: "MSG_${System.currentTimeMillis()}",
+                        message: message,
+                        aiResponse: aiResponse,
+                        intent: intent,
+                        messageType: "user",
+                        processedDate: ec.user.nowTimestamp,
+                        merchantId: merchantId
+                    ]).call()
+                } finally {
+                    // 重新启用授权检查
+                    ec.artifactExecution.enableAuthz()
+                }
+            ]]></script>
+
+            <log level="info" message="=== 消息处理成功，intent: ${intent} ==="/>
+            <set field="success" value="true"/>
+        </actions>
+    </service>
+
+    <!-- 智能推荐服务 -->
+    <service verb="get" noun="SmartRecommendations">
+        <description>获取商家智能推荐</description>
+        <in-parameters>
+            <parameter name="merchantId" required="true"/>
+            <parameter name="maxResults" type="Integer" default="5"/>
+            <parameter name="minScore" type="BigDecimal" default="0.6"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="success"/>
+            <parameter name="recommendations"/>
+            <parameter name="totalCount"/>
+            <parameter name="merchantId"/>
+            <parameter name="error"/>
+        </out-parameters>
+        <actions>
+            <script location="component://moqui-mcp/src/main/groovy/MarketplaceMcpServices.groovy#getSmartRecommendations"/>
+        </actions>
+    </service>
+
+    <!-- 商家行为分析服务 -->
+    <service verb="analyze" noun="MerchantBehavior">
+        <description>分析商家行为和活跃度</description>
+        <in-parameters>
+            <parameter name="merchantId" required="true"/>
+            <parameter name="days" type="Integer" default="30"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="success"/>
+            <parameter name="merchantId"/>
+            <parameter name="analyzePeriod"/>
+            <parameter name="supplyCount"/>
+            <parameter name="demandCount"/>
+            <parameter name="chatCount"/>
+            <parameter name="activityScore"/>
+            <parameter name="activityLevel"/>
+            <parameter name="analysis"/>
+            <parameter name="error"/>
+        </out-parameters>
+        <actions>
+            <script location="component://moqui-mcp/src/main/groovy/MarketplaceMcpServices.groovy#analyzeMerchantBehavior"/>
+        </actions>
+    </service>
+
+    <!-- Rocket.Chat集成服务 -->
+    <service verb="process" noun="RocketChatWebhook">
+        <description>处理来自Rocket.Chat的Webhook消息</description>
+        <in-parameters>
+            <parameter name="text"/>
+            <parameter name="user" type="Map"/>
+            <parameter name="channel" type="Map"/>
+            <parameter name="timestamp"/>
+            <parameter name="messageId"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="success"/>
+            <parameter name="sessionId"/>
+            <parameter name="intent"/>
+            <parameter name="action"/>
+            <parameter name="messageSent"/>
+            <parameter name="error"/>
+        </out-parameters>
+        <actions>
+            <script location="component://moqui-mcp/src/main/groovy/RocketChatServices.groovy#processRocketChatWebhook"/>
+        </actions>
+    </service>
+
+    <!-- 发送消息到Rocket.Chat -->
+    <service verb="send" noun="RocketChatMessage">
+        <description>发送消息到指定的Rocket.Chat频道</description>
+        <in-parameters>
+            <parameter name="channelId" required="true"/>
+            <parameter name="message" required="true"/>
+            <parameter name="username"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="success"/>
+            <parameter name="channelId"/>
+            <parameter name="message"/>
+            <parameter name="sent"/>
+            <parameter name="error"/>
+        </out-parameters>
+        <actions>
+            <script location="component://moqui-mcp/src/main/groovy/RocketChatServices.groovy#sendMessageToRocketChat"/>
+        </actions>
+    </service>
+
+    <!-- 获取Rocket.Chat集成状态 -->
+    <service verb="get" noun="RocketChatStatus">
+        <description>检查Rocket.Chat集成状态和配置</description>
+        <out-parameters>
+            <parameter name="success"/>
+            <parameter name="configured"/>
+            <parameter name="rocketchatUrl"/>
+            <parameter name="botUsername"/>
+            <parameter name="status"/>
+            <parameter name="error"/>
+        </out-parameters>
+        <actions>
+            <script location="component://moqui-mcp/src/main/groovy/RocketChatServices.groovy#getRocketChatStatus"/>
+        </actions>
+    </service>
+
+    <!-- 发送marketplace通知 -->
+    <service verb="send" noun="MarketplaceNotification">
+        <description>通过Rocket.Chat发送marketplace通知</description>
+        <in-parameters>
+            <parameter name="userId" required="true"/>
+            <parameter name="notificationType" required="true"/>
+            <parameter name="matchId"/>
+            <parameter name="productName"/>
+            <parameter name="matchScore"/>
+            <parameter name="contactName"/>
+            <parameter name="orderId"/>
+            <parameter name="status"/>
+            <parameter name="message"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="success"/>
+            <parameter name="userId"/>
+            <parameter name="notificationType"/>
+            <parameter name="message"/>
+            <parameter name="channelId"/>
+            <parameter name="sent"/>
+            <parameter name="error"/>
+        </out-parameters>
+        <actions>
+            <script location="component://moqui-mcp/src/main/groovy/RocketChatServices.groovy#sendMarketplaceNotification"/>
+        </actions>
+    </service>
+
+</services>

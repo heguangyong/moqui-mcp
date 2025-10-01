@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-facade-xml type="seed-initial">
+
+    <!-- MCP REST API 权限组 -->
+    <moqui.security.ArtifactGroup artifactGroupId="MCP_API" description="MCP REST API (AI Assistant)"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="MCP_API" artifactTypeEnumId="AT_REST_PATH"
+            inheritAuthz="Y" artifactName="/mcp"/>
+
+    <!-- 为管理员组授权 -->
+    <moqui.security.ArtifactAuthz artifactAuthzId="MCP_AUTHZ_ADMIN" userGroupId="ADMIN" artifactGroupId="MCP_API"
+            authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL"/>
+
+    <!-- 为匿名用户授权（开发环境） -->
+    <moqui.security.ArtifactAuthz artifactAuthzId="MCP_AUTHZ_ANONYMOUS" userGroupId="_NA_" artifactGroupId="MCP_API"
+            authzTypeEnumId="AUTHZT_ALLOW" authzActionEnumId="AUTHZA_ALL"/>
+
+    <!-- MCP 服务权限组 -->
+    <moqui.security.ArtifactGroup artifactGroupId="MCP_SERVICES" description="MCP Services"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="MCP_SERVICES" artifactTypeEnumId="AT_SERVICE"
+            inheritAuthz="Y" artifactName="moqui.mcp.*"/>
+
+    <!-- 为管理员和匿名用户授权服务 -->
+    <moqui.security.ArtifactAuthz artifactAuthzId="MCP_SVC_AUTHZ_ADMIN" userGroupId="ADMIN" artifactGroupId="MCP_SERVICES"
+            authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL"/>
+    <moqui.security.ArtifactAuthz artifactAuthzId="MCP_SVC_AUTHZ_ANONYMOUS" userGroupId="_NA_" artifactGroupId="MCP_SERVICES"
+            authzTypeEnumId="AUTHZT_ALLOW" authzActionEnumId="AUTHZA_ALL"/>
+
+    <!-- MCP 实体权限组 -->
+    <moqui.security.ArtifactGroup artifactGroupId="MCP_ENTITIES" description="MCP Entities"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="MCP_ENTITIES" artifactTypeEnumId="AT_ENTITY"
+            inheritAuthz="Y" artifactName="mcp.*"/>
+
+    <!-- 为管理员和匿名用户授权实体访问 -->
+    <moqui.security.ArtifactAuthz artifactAuthzId="MCP_ENT_AUTHZ_ADMIN" userGroupId="ADMIN" artifactGroupId="MCP_ENTITIES"
+            authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL"/>
+    <moqui.security.ArtifactAuthz artifactAuthzId="MCP_ENT_AUTHZ_ANONYMOUS" userGroupId="_NA_" artifactGroupId="MCP_ENTITIES"
+            authzTypeEnumId="AUTHZT_ALLOW" authzActionEnumId="AUTHZA_ALL"/>
+
+</entity-facade-xml>

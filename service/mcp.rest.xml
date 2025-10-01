@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- General Guideline Verbs: GET=find, POST=create, PUT=store (create or update), PATCH=update, DELETE=delete -->
 <resource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/rest-api-3.xsd"
-          name="mcp" displayName="MCP AI Assistant API" version="1.0.0">
+          name="mcp" displayName="MCP AI Assistant API" version="1.0.0" require-authentication="anonymous-view">
     <resource name="chat" require-authentication="anonymous-view">
         <method type="post"><service name="moqui.mcp.McpServices.chat#Message"/></method>
     </resource>
@@ -33,11 +33,31 @@ along with this software (see the LICENSE.md file). If not, see
             <method type="delete"><service name="moqui.mcp.McpServices.delete#DialogSession"/></method>
         </id>
     </resource>
-    <resource name="messages" require-authentication="anonymous-view">
-        <method type="get"><entity name="mcp.McpDialogMessage" operation="list"/></method>
-        <id name="dialogMessageId">
-            <method type="get"><entity name="mcp.McpDialogMessage" operation="one"/></method>
-            <method type="patch"><service name="moqui.mcp.McpServices.update#DialogMessage"/></method>
+    <resource name="marketplace" require-authentication="anonymous-all">
+        <method type="post"><service name="moqui.mcp.process#MarketplaceMessage"/></method>
+    </resource>
+    <resource name="marketplace-chat" require-authentication="anonymous-all">
+        <method type="post"><service name="moqui.mcp.chat#Message"/></method>
+    </resource>
+    <resource name="marketplace-session" require-authentication="anonymous-all">
+        <method type="post"><service name="moqui.mcp.create#MarketplaceSession"/></method>
+        <id name="sessionId">
+            <method type="get"><service name="moqui.mcp.get#MarketplaceSession"/></method>
+            <method type="patch"><service name="moqui.mcp.update#MarketplaceSession"/></method>
         </id>
+    </resource>
+    <resource name="rocketchat" require-authentication="anonymous-all">
+        <resource name="webhook">
+            <method type="post"><service name="moqui.mcp.process#RocketChatWebhook"/></method>
+        </resource>
+        <resource name="message">
+            <method type="post"><service name="moqui.mcp.send#RocketChatMessage"/></method>
+        </resource>
+        <resource name="status">
+            <method type="get"><service name="moqui.mcp.get#RocketChatStatus"/></method>
+        </resource>
+        <resource name="notification">
+            <method type="post"><service name="moqui.mcp.send#MarketplaceNotification"/></method>
+        </resource>
     </resource>
 </resource>

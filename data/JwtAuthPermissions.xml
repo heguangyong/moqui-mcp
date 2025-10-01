@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-facade-xml type="seed">
+
+    <!-- JWT Authentication Permissions for Anonymous Users -->
+
+    <!-- Create artifact groups for JWT authentication -->
+    <moqui.security.ArtifactGroup artifactGroupId="JWT_AUTH" description="JWT Authentication Services"/>
+
+    <!-- Add REST paths to artifact group -->
+    <moqui.security.ArtifactGroupMember artifactGroupId="JWT_AUTH" artifactName="/auth" nameIsPattern="Y" artifactTypeEnumId="AT_REST_PATH"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="JWT_AUTH" artifactName="/auth/login" nameIsPattern="N" artifactTypeEnumId="AT_REST_PATH"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="JWT_AUTH" artifactName="/auth/refresh" nameIsPattern="N" artifactTypeEnumId="AT_REST_PATH"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="JWT_AUTH" artifactName="/auth/verify" nameIsPattern="N" artifactTypeEnumId="AT_REST_PATH"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="JWT_AUTH" artifactName="/auth/logout" nameIsPattern="N" artifactTypeEnumId="AT_REST_PATH"/>
+
+    <!-- Add JWT services to artifact group -->
+    <moqui.security.ArtifactGroupMember artifactGroupId="JWT_AUTH" artifactName="moqui.jwt.authenticate#User" nameIsPattern="N" artifactTypeEnumId="AT_SERVICE"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="JWT_AUTH" artifactName="moqui.jwt.refresh#Token" nameIsPattern="N" artifactTypeEnumId="AT_SERVICE"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="JWT_AUTH" artifactName="moqui.jwt.verify#Token" nameIsPattern="N" artifactTypeEnumId="AT_SERVICE"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="JWT_AUTH" artifactName="moqui.jwt.logout#User" nameIsPattern="N" artifactTypeEnumId="AT_SERVICE"/>
+
+    <!-- Grant anonymous access to JWT authentication -->
+    <moqui.security.ArtifactAuthz artifactAuthzId="JWT_AUTH_ANONYMOUS" userGroupId="ALL_USERS" artifactGroupId="JWT_AUTH"
+        authzTypeEnumId="AUTHZT_ALLOW" authzActionEnumId="AUTHZA_ALL"/>
+
+    <!-- Enhanced MCP Permissions for Anonymous Users -->
+    <moqui.security.ArtifactGroup artifactGroupId="MCP_ANONYMOUS" description="MCP Services for Anonymous Users"/>
+
+    <!-- Add MCP services for anonymous access -->
+    <moqui.security.ArtifactGroupMember artifactGroupId="MCP_ANONYMOUS" artifactName="moqui.mcp.create#MarketplaceSession" nameIsPattern="N" artifactTypeEnumId="AT_SERVICE"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="MCP_ANONYMOUS" artifactName="moqui.mcp.get#MarketplaceSession" nameIsPattern="N" artifactTypeEnumId="AT_SERVICE"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="MCP_ANONYMOUS" artifactName="moqui.mcp.chat#Message" nameIsPattern="N" artifactTypeEnumId="AT_SERVICE"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="MCP_ANONYMOUS" artifactName="moqui.mcp.get#SmartRecommendations" nameIsPattern="N" artifactTypeEnumId="AT_SERVICE"/>
+
+    <!-- Add MCP entities for anonymous access -->
+    <moqui.security.ArtifactGroupMember artifactGroupId="MCP_ANONYMOUS" artifactName="mcp.dialog.McpDialogSession" nameIsPattern="N" artifactTypeEnumId="AT_ENTITY"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="MCP_ANONYMOUS" artifactName="mcp.dialog.McpDialogMessage" nameIsPattern="N" artifactTypeEnumId="AT_ENTITY"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="MCP_ANONYMOUS" artifactName="mantle.party.Party" nameIsPattern="N" artifactTypeEnumId="AT_ENTITY"/>
+
+    <!-- Add MCP REST paths for anonymous access -->
+    <moqui.security.ArtifactGroupMember artifactGroupId="MCP_ANONYMOUS" artifactName="/mcp" nameIsPattern="Y" artifactTypeEnumId="AT_REST_PATH"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="MCP_ANONYMOUS" artifactName="/mcp/marketplace-chat" nameIsPattern="N" artifactTypeEnumId="AT_REST_PATH"/>
+    <moqui.security.ArtifactGroupMember artifactGroupId="MCP_ANONYMOUS" artifactName="/mcp/marketplace-session" nameIsPattern="N" artifactTypeEnumId="AT_REST_PATH"/>
+
+    <!-- Grant anonymous access to MCP -->
+    <moqui.security.ArtifactAuthz artifactAuthzId="MCP_ANONYMOUS_ALLOW" userGroupId="ALL_USERS" artifactGroupId="MCP_ANONYMOUS"
+        authzTypeEnumId="AUTHZT_ALLOW" authzActionEnumId="AUTHZA_ALL"/>
+
+</entity-facade-xml>

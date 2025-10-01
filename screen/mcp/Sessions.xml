@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="会话管理" require-authentication="true">
+
+    <transition name="createSession">
+        <service-call name="moqui.mcp.McpServices.create#DialogSession"/>
+        <default-response url="."/>
+    </transition>
+
+    <transition name="updateSession">
+        <service-call name="moqui.mcp.McpServices.update#DialogSession"/>
+        <default-response url="."/>
+    </transition>
+
+    <transition name="deleteSession">
+        <service-call name="moqui.mcp.McpServices.delete#DialogSession"/>
+        <default-response url="."/>
+    </transition>
+
+    <actions>
+        <entity-find entity-name="mcp.McpDialogSession" list="sessions">
+            <order-by field-name="-lastModifiedDate"/>
+        </entity-find>
+    </actions>
+
+    <widgets>
+        <container style="margin-bottom:20px;">
+            <label text="MCP AI助手会话管理" type="h2"/>
+        </container>
+
+        <form-list name="SessionsList" list="sessions" skip-form="true" header-dialog="true" select-columns="true" saved-finds="true">
+            <field name="sessionId">
+                <default-field title="会话ID"><display/></default-field>
+            </field>
+            <field name="customerId">
+                <default-field title="客户ID"><display/></default-field>
+            </field>
+            <field name="merchantId">
+                <default-field title="商家ID"><display/></default-field>
+            </field>
+            <field name="currentPhase">
+                <default-field title="当前阶段"><display/></default-field>
+            </field>
+            <field name="sessionType">
+                <default-field title="会话类型"><display/></default-field>
+            </field>
+            <field name="status">
+                <default-field title="状态"><display/></default-field>
+            </field>
+            <field name="createdDate">
+                <default-field title="创建时间"><display format="yyyy-MM-dd HH:mm:ss"/></default-field>
+            </field>
+            <field name="lastModifiedDate">
+                <default-field title="最后修改"><display format="yyyy-MM-dd HH:mm:ss"/></default-field>
+            </field>
+            <field name="operations">
+                <default-field title="操作">
+                    <link url="updateSession" text="编辑" parameter-map="[sessionId:sessionId]"/>
+                    <link url="deleteSession" text="删除" parameter-map="[sessionId:sessionId]" confirmation="确定要删除这个会话吗？"/>
+                </default-field>
+            </field>
+        </form-list>
+    </widgets>
+</screen>

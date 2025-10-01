@@ -48,11 +48,19 @@ tasks.withType(GroovyCompile) { options.compilerArgs << "-proc:none" }
 
 dependencies {
     implementation project(':framework')
+    implementation project(':runtime:component:moqui-marketplace')
     testImplementation project(':framework').configurations.testImplementation.allDependencies
 
-    // Add moqui-mcp dependencies here
-    implementation 'dev.langchain4j:langchain4j:0.33.0'
-    implementation 'dev.langchain4j:langchain4j-ollama:0.33.0'
+    // AI Integration Dependencies
+    implementation 'dev.langchain4j:langchain4j:0.34.0'
+    implementation 'dev.langchain4j:langchain4j-ollama:0.34.0'
+
+    // Claude API integration (using standard HTTP client)
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.15.2'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+
+    // Enhanced NLP capabilities
+    implementation 'org.apache.commons:commons-text:1.10.0'
 }
 
 // by default the Java plugin runs test on build, change to not do that (only run test if explicit task)

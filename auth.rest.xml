@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/rest-api-1.6.xsd"
+         name="auth" displayName="JWT Authentication API" version="1.0">
+
+    <resource name="login" displayName="User Login">
+        <method type="post">
+            <service name="moqui.jwt.authenticate#User"/>
+        </method>
+    </resource>
+
+    <resource name="refresh" displayName="Refresh Token">
+        <method type="post">
+            <service name="moqui.jwt.refresh#Token"/>
+        </method>
+    </resource>
+
+    <resource name="verify" displayName="Verify Token">
+        <method type="post">
+            <service name="moqui.jwt.verify#Token"/>
+        </method>
+    </resource>
+
+    <resource name="logout" displayName="User Logout">
+        <method type="post">
+            <service name="moqui.jwt.logout#User"/>
+        </method>
+    </resource>
+
+</resource>

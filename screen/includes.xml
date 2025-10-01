@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        require-authentication="false">
+
+    <parameter name="filename"/>
+
+    <always-actions>
+        <set field="contentType" value="text/javascript"/>
+    </always-actions>
+
+    <widgets>
+        <render-mode>
+            <text type="html" location="component://moqui-mcp/screen/includes/${filename}"/>
+        </render-mode>
+    </widgets>
+</screen>

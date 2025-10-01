@@ -3,4 +3,25 @@
            name="moqui-mcp" version="1.0.0">
     <depends-on name="mantle-udm"/>
     <depends-on name="mantle-usl"/>
+
+    <!-- Service 定义文件 -->
+    <service-list>
+        <service location="component://moqui-mcp/service/moqui/mcp.xml"/>
+    </service-list>
+
+    <!-- Entity 定义文件 -->
+    <entity-facade>
+        <datasource group-name="transactional">
+            <inline-other location="component://moqui-mcp/entity/McpEntities.xml"/>
+        </datasource>
+    </entity-facade>
+
+    <!-- REST API 资源定义 -->
+    <webapp-list>
+        <webapp name="webroot">
+            <rest-api>
+                <resource location="component://moqui-mcp/service/mcp.rest.xml"/>
+            </rest-api>
+        </webapp>
+    </webapp-list>
 </component>
