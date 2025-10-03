@@ -362,13 +362,102 @@ private String escapeJson(String text) {
 }
 
 private String getBotAuthToken() {
-    // TODO: 实现Rocket.Chat认证token获取
-    return context.ec.factory.getToolFactory("SystemBinding")
+    // 尝试从系统属性获取token
+    String token = context.ec.factory.getToolFactory("SystemBinding")
             .getSystemProperty("rocketchat.bot.token", "")
+
+    if (token.isEmpty()) {
+        // 如果没有token，尝试通过用户名密码登录获取
+        token = authenticateAndGetToken()
+    }
+
+    return token
 }
 
 private String getBotUserId() {
-    // TODO: 实现Rocket.Chat Bot用户ID获取
-    return context.ec.factory.getToolFactory("SystemBinding")
+    // 尝试从系统属性获取userId
+    String userId = context.ec.factory.getToolFactory("SystemBinding")
             .getSystemProperty("rocketchat.bot.userid", "")
+
+    if (userId.isEmpty()) {
+        // 如果没有userId，尝试通过用户名密码登录获取
+        userId = authenticateAndGetUserId()
+    }
+
+    return userId
+}
+
+/**
+ * 通过用户名密码认证获取Token
+ */
+private String authenticateAndGetToken() {
+    try {
+        String rocketchatUrl = context.ec.factory.getToolFactory("SystemBinding")
+                .getSystemProperty("rocketchat.server.url", "http://localhost:4000")
+        String botUsername = context.ec.factory.getToolFactory("SystemBinding")
+                .getSystemProperty("rocketchat.bot.username", "marketplace-bot")
+        String botPassword = context.ec.factory.getToolFactory("SystemBinding")
+                .getSystemProperty("rocketchat.bot.password", "")
+
+        if (botPassword.isEmpty()) {
+            logger.warn("Rocket.Chat bot password not configured")
+            return ""
+        }
+
+        // 构建登录请求
+        String apiUrl = rocketchatUrl + "/api/v1/login"
+        String jsonPayload = """{
+            "user":"${botUsername}",
+            "password":"${escapeJson(botPassword)}"
+        }"""
+
+        HttpClient httpClient = HttpClient.newHttpClient()
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(apiUrl))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+            .build()
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+
+        if (response.statusCode() == 200) {
+            // 解析响应获取token
+            def responseData = new groovy.json.JsonSlurper().parseText(response.body())
+            String authToken = responseData.data?.authToken
+            String userId = responseData.data?.userId
+
+            if (authToken && userId) {
+                // 缓存token和userId到系统属性（临时）
+                System.setProperty("rocketchat.bot.token.temp", authToken)
+                System.setProperty("rocketchat.bot.userid.temp", userId)
+
+                logger.info("Successfully authenticated with Rocket.Chat")
+                return authToken
+            }
+        } else {
+            logger.warn("Failed to authenticate with Rocket.Chat. Status: ${response.statusCode()}")
+        }
+
+    } catch (Exception e) {
+        logger.error("Error authenticating with Rocket.Chat", e)
+    }
+
+    return ""
+}
+
+/**
+ * 通过用户名密码认证获取UserId
+ */
+private String authenticateAndGetUserId() {
+    try {
+        // 先触发认证流程
+        authenticateAndGetToken()
+
+        // 从临时缓存获取userId
+        return System.getProperty("rocketchat.bot.userid.temp", "")
+
+    } catch (Exception e) {
+        logger.error("Error getting userId from Rocket.Chat", e)
+        return ""
+    }
 }

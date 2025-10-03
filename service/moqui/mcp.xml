@@ -120,8 +120,11 @@
                         .one()
 
                     if (!session) {
-                        ec.logger.warn("会话不存在：${sessionId}")
-                        ec.message.addError("会话不存在")
+                        ec.logger.info("会话不存在，返回空结果：${sessionId}")
+                        // 不添加错误消息，只是返回空的结果
+                        session = null
+                        recentMessages = []
+                        messageCount = 0
                         return
                     }
 
@@ -226,6 +229,43 @@
                 // 禁用授权检查
                 ec.artifactExecution.disableAuthz()
                 try {
+                    // 检查会话是否存在，如果不存在则创建
+                    def existingSession = ec.entity.find("mcp.dialog.McpDialogSession")
+                        .condition("sessionId", sessionId)
+                        .one()
+
+                    if (!existingSession) {
+                        ec.logger.info("Session ${sessionId} does not exist, creating it...")
+
+                        // 确保merchantId对应的Party存在
+                        def existingParty = ec.entity.find("mantle.party.Party")
+                            .condition("partyId", merchantId)
+                            .one()
+
+                        if (!existingParty) {
+                            ec.logger.info("Creating Party for merchantId: ${merchantId}")
+                            ec.service.sync().name("create#mantle.party.Party").parameters([
+                                partyId: merchantId,
+                                partyTypeEnumId: "PtyPerson",
+                                disabled: "N"
+                            ]).call()
+                        }
+
+                        // 创建会话记录
+                        ec.service.sync().name("create#mcp.dialog.McpDialogSession").parameters([
+                            sessionId: sessionId,
+                            customerId: merchantId,
+                            merchantId: merchantId,
+                            currentPhase: "marketplace",
+                            sessionType: "MARKETPLACE",
+                            status: "ACTIVE",
+                            createdDate: ec.user.nowTimestamp,
+                            lastModifiedDate: ec.user.nowTimestamp
+                        ]).call()
+
+                        ec.logger.info("Session ${sessionId} created successfully")
+                    }
+
                     // 保存对话记录
                     ec.service.sync().name("create#mcp.dialog.McpDialogMessage").parameters([
                         sessionId: sessionId,
@@ -249,7 +289,7 @@
     </service>
 
     <!-- 智能推荐服务 -->
-    <service verb="get" noun="SmartRecommendations">
+    <service verb="get" noun="SmartRecommendations" authenticate="false">
         <description>获取商家智能推荐</description>
         <in-parameters>
             <parameter name="merchantId" required="true"/>

@@ -8,6 +8,10 @@
             <filter name="JwtAuthenticationFilter" class="org.moqui.impl.webapp.JwtAuthenticationFilter"/>
             <filter-mapping name="JwtAuthenticationFilter" url-pattern="/marketplace/*"/>
             <filter-mapping name="JwtAuthenticationFilter" url-pattern="/mcp/*"/>
+            <!-- REST API resource registration -->
+            <rest-api>
+                <resource location="component://moqui-mcp/service/mcp.rest.xml"/>
+            </rest-api>
         </webapp>
     </webapp-list>
 

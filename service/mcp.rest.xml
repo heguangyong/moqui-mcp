@@ -46,6 +46,14 @@ along with this software (see the LICENSE.md file). If not, see
             <method type="patch"><service name="moqui.mcp.update#MarketplaceSession"/></method>
         </id>
     </resource>
+    <resource name="recommendations" require-authentication="anonymous-all">
+        <method type="get"><service name="moqui.mcp.get#SmartRecommendations"/></method>
+    </resource>
+    <resource name="merchant" require-authentication="anonymous-all">
+        <resource name="behavior">
+            <method type="get"><service name="moqui.mcp.analyze#MerchantBehavior"/></method>
+        </resource>
+    </resource>
     <resource name="rocketchat" require-authentication="anonymous-all">
         <resource name="webhook">
             <method type="post"><service name="moqui.mcp.process#RocketChatWebhook"/></method>
@@ -59,5 +67,8 @@ along with this software (see the LICENSE.md file). If not, see
         <resource name="notification">
             <method type="post"><service name="moqui.mcp.send#MarketplaceNotification"/></method>
         </resource>
+    </resource>
+    <resource name="rocket-webhook" require-authentication="anonymous-all">
+        <method type="post"><service name="moqui.mcp.process#RocketChatWebhook"/></method>
     </resource>
 </resource>

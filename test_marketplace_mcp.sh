@@ -22,8 +22,8 @@ SESSION_RESPONSE=$(curl -s -X POST "$BASE_URL/rest/s1/mcp/marketplace-session" \
 
 echo "   会话创建响应: $SESSION_RESPONSE"
 
-# 提取sessionId (简化版本)
-SESSION_ID=$(echo $SESSION_RESPONSE | grep -o '"sessionId":"[^"]*"' | cut -d'"' -f4)
+# 提取sessionId - 改进的JSON解析
+SESSION_ID=$(echo $SESSION_RESPONSE | sed -n 's/.*"sessionId" : "\([^"]*\)".*/\1/p')
 echo "   会话ID: $SESSION_ID"
 
 if [ -z "$SESSION_ID" ]; then

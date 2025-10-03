@@ -16,12 +16,4 @@
         </datasource>
     </entity-facade>
 
-    <!-- REST API 资源定义 -->
-    <webapp-list>
-        <webapp name="webroot">
-            <rest-api>
-                <resource location="component://moqui-mcp/service/mcp.rest.xml"/>
-            </rest-api>
-        </webapp>
-    </webapp-list>
 </component>
