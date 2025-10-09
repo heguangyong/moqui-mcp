@@ -17,7 +17,7 @@
 
     <screen-facade>
         <screen location="component://webroot/screen/webroot.xml">
-            <subscreens-item name="mcp" location="component://moqui-mcp/screen/McpSite.xml"/>
+            <subscreens-item name="mcp" location="component://moqui-mcp/screen/McpSite/McpSite.xml"/>
             <subscreens-item name="mcp-includes" location="component://moqui-mcp/screen/includes.xml"/>
         </screen>
         <screen location="component://webroot/screen/webroot/apps.xml">
