@@ -16,8 +16,18 @@ class JwtAuthManager {
         // Setup automatic token injection
         this.setupInterceptors();
 
+        // Track forms that require JWT injection
+        this.jwtForms = new Set();
+        this.refreshTimerId = null;
+
         // Setup token refresh timer
         this.setupTokenRefresh();
+
+        // Ensure legacy session tokens are removed from AJAX calls and JWT headers are attached
+        this.setupAjaxHooks();
+
+        // Keep HTML forms in sync with the current JWT token
+        this.setupFormHooks();
     }
 
     /**
@@ -54,6 +64,9 @@ class JwtAuthManager {
         if (accessToken) {
             document.cookie = `jwt_token=${accessToken}; path=/; SameSite=Strict`;
         }
+
+        this.dispatchTokenUpdate(this.token);
+        this.setupTokenRefresh();
     }
 
     /**
@@ -70,6 +83,12 @@ class JwtAuthManager {
 
         this.token = null;
         this.refreshToken = null;
+
+        this.dispatchTokenUpdate(null);
+        if (this.refreshTimerId) {
+            clearTimeout(this.refreshTimerId);
+            this.refreshTimerId = null;
+        }
     }
 
     /**
@@ -211,6 +230,11 @@ class JwtAuthManager {
      * Setup automatic token refresh
      */
     setupTokenRefresh() {
+        if (this.refreshTimerId) {
+            clearTimeout(this.refreshTimerId);
+            this.refreshTimerId = null;
+        }
+
         if (!this.token) return;
 
         try {
@@ -222,7 +246,7 @@ class JwtAuthManager {
             const refreshTime = timeUntilExpiry - (5 * 60 * 1000); // Refresh 5 minutes before expiry
 
             if (refreshTime > 0) {
-                setTimeout(() => {
+                this.refreshTimerId = setTimeout(() => {
                     this.refreshAccessToken().then(success => {
                         if (success) {
                             this.setupTokenRefresh(); // Setup next refresh
@@ -235,6 +259,163 @@ class JwtAuthManager {
             }
         } catch (error) {
             console.warn('Failed to parse JWT token for auto-refresh:', error);
+        }
+    }
+
+
+    setupAjaxHooks() {
+        if (this.ajaxHooksInitialized) return;
+        if (typeof window === 'undefined' || !window.jQuery) return;
+
+        const self = this;
+        const $doc = window.jQuery(document);
+
+        $doc.on('ajaxSend.jwtAuth', function(event, jqXHR, settings) {
+            const headers = (typeof moqui !== 'undefined' && typeof moqui.getAuthHeaders === 'function') ? moqui.getAuthHeaders() : {};
+            if (headers && jqXHR && typeof jqXHR.setRequestHeader === 'function') {
+                Object.keys(headers).forEach(function(key) {
+                    jqXHR.setRequestHeader(key, headers[key]);
+                });
+            }
+
+            if (!settings || typeof settings.data === 'undefined' || settings.data === null) return;
+
+            if (typeof settings.data === 'string') {
+                settings.data = self.stripLegacySessionToken(settings.data);
+            } else if (typeof window.FormData !== 'undefined' && settings.data instanceof window.FormData) {
+                settings.data.delete && settings.data.delete('moquiSessionToken');
+                settings.data.delete && settings.data.delete('SessionToken');
+            } else if (typeof settings.data === 'object') {
+                delete settings.data.moquiSessionToken;
+                delete settings.data.SessionToken;
+            }
+        });
+
+        $doc.on('ajaxSuccess.jwtAuth', function(event, jqXHR) {
+            if (typeof moqui !== 'undefined' && typeof moqui.extractAndSaveTokensFromResponse === 'function') {
+                moqui.extractAndSaveTokensFromResponse(jqXHR);
+            }
+        });
+
+        this.ajaxHooksInitialized = true;
+    }
+
+    stripLegacySessionToken(data) {
+        if (typeof data !== 'string' || !data.length) return data;
+        const parts = data.split('&').filter(function(part) {
+            const key = part.split('=')[0];
+            return key !== 'moquiSessionToken' && key !== 'SessionToken' && key.length > 0;
+        });
+        return parts.join('&');
+    }
+
+    setupFormHooks() {
+        if (this.formHooksInitialized) return;
+        if (typeof document === 'undefined') return;
+
+        const initialiseForms = () => {
+            if (typeof document === 'undefined') return;
+            if (typeof document.querySelectorAll === 'function') {
+                document.querySelectorAll('form').forEach(form => this.wireForm(form));
+            }
+            this.updateAllJwtForms();
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => initialiseForms(), { once: true });
+        } else {
+            initialiseForms();
+        }
+
+        if (typeof MutationObserver !== 'undefined' && document.body) {
+            this.formObserver = new MutationObserver(mutations => {
+                mutations.forEach(mutation => {
+                    mutation.addedNodes.forEach(node => {
+                        if (!(node instanceof Element)) return;
+                        if (node.tagName === 'FORM') {
+                            this.wireForm(node);
+                        } else if (typeof node.querySelectorAll === 'function') {
+                            node.querySelectorAll('form').forEach(form => this.wireForm(form));
+                        }
+                    });
+                });
+            });
+            this.formObserver.observe(document.body, { childList: true, subtree: true });
+        }
+
+        this.formHooksInitialized = true;
+    }
+
+    wireForm(form) {
+        if (!form || form.getAttribute('data-jwt-wired') === 'true') return;
+
+        form.setAttribute('data-jwt-wired', 'true');
+        if (!this.jwtForms) this.jwtForms = new Set();
+        this.jwtForms.add(form);
+        this.removeLegacySessionTokens(form);
+        this.ensureJwtInput(form);
+
+        form.addEventListener('submit', () => {
+            this.removeLegacySessionTokens(form);
+            this.ensureJwtInput(form);
+            this.updateAllJwtForms();
+        });
+    }
+
+    ensureJwtInput(form) {
+        if (!form) return null;
+        let input = form.querySelector('input[name="jwt_token"][data-jwt-managed="true"]');
+        if (!input) {
+            input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'jwt_token';
+            input.setAttribute('data-jwt-managed', 'true');
+            form.appendChild(input);
+        }
+        const token = this.token || this.getStoredToken();
+        input.value = token || '';
+        return input;
+    }
+
+    removeLegacySessionTokens(form) {
+        if (!form || typeof form.querySelectorAll !== 'function') return;
+        const legacy = form.querySelectorAll('input[name="moquiSessionToken"], input[name="SessionToken"]');
+        legacy.forEach(field => {
+            if (field && field.parentNode) {
+                field.parentNode.removeChild(field);
+            }
+        });
+    }
+
+    updateAllJwtForms() {
+        if (!this.jwtForms || typeof document === 'undefined') return;
+        const token = this.token || this.getStoredToken();
+        const stale = [];
+        this.jwtForms.forEach(form => {
+            if (!form || !document.body || !document.body.contains(form)) {
+                stale.push(form);
+                return;
+            }
+            this.removeLegacySessionTokens(form);
+            const input = this.ensureJwtInput(form);
+            if (input) input.value = token || '';
+        });
+        stale.forEach(form => this.jwtForms.delete(form));
+    }
+
+    dispatchTokenUpdate(token) {
+        this.token = token || null;
+        this.updateAllJwtForms();
+        if (typeof document === 'undefined') return;
+        try {
+            document.dispatchEvent(new CustomEvent('moqui-jwt-updated', { detail: { token: this.token } }));
+        } catch (error) {
+            if (typeof document.createEvent === 'function') {
+                const evt = document.createEvent('Event');
+                evt.initEvent('moqui-jwt-updated', true, true);
+                evt.detail = { token: this.token };
+                document.dispatchEvent(evt);
+            }
         }
     }
 
