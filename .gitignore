@@ -57,3 +57,11 @@ Desktop.ini
 /lib/opennlp-tools-1.9.4.jar
 /lib/retrofit-2.9.0.jar
 /lib/moqui-marketplace-1.0.0.jar
+# JAR files (binary artifacts should not be in Git)
+*.jar
+lib/*.jar
+
+# Build outputs
+build/
+target/
+
