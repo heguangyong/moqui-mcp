@@ -1,7 +1,5 @@
 # runtime added files
 build
-lib/moqui-wechat-*.jar
-
 # IntelliJ IDEA files
 .idea/
 out/
@@ -58,3 +56,4 @@ Desktop.ini
 /lib/okio-jvm-3.6.0.jar
 /lib/opennlp-tools-1.9.4.jar
 /lib/retrofit-2.9.0.jar
+/lib/moqui-marketplace-1.0.0.jar
