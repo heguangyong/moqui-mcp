@@ -3,7 +3,7 @@ package org.moqui.mcp;
 import org.moqui.context.ExecutionContext;
 import org.moqui.entity.EntityValue;
 import org.moqui.entity.EntityList;
-import org.moqui.marketplace.matching.SmartMatchingEngine;
+// import org.moqui.marketplace.matching.SmartMatchingEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,7 +24,7 @@ public class MarketplaceMcpService {
     private static final Logger logger = LoggerFactory.getLogger(MarketplaceMcpService.class);
     private final ExecutionContext ec;
     private final HttpClient httpClient;
-    private final SmartMatchingEngine matchingEngine;
+    // private final SmartMatchingEngine matchingEngine;
 
     // Claude API配置
     private static final String CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
@@ -35,7 +35,7 @@ public class MarketplaceMcpService {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(30))
                 .build();
-        this.matchingEngine = new SmartMatchingEngine(ec);
+        // this.matchingEngine = new SmartMatchingEngine(ec);
     }
 
     /**
@@ -144,8 +144,12 @@ public class MarketplaceMcpService {
                     String listingId = (String) createResult.get("listingId");
 
                     // 立即查找匹配
-                    List<Map<String, Object>> matches = matchingEngine.findMatchesForListing(
-                        listingId, 3, new BigDecimal("0.6"));
+                    Map<String, Object> matchResult = ec.getService().sync()
+                        .name("marketplace.process#AllMatching")
+                        .parameters(Map.of("listingId", listingId, "maxResults", 3, "minScore", new BigDecimal("0.6")))
+                        .call();
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> matches = (List<Map<String, Object>>) matchResult.getOrDefault("matches", new ArrayList<>());
 
                     result.put("success", true);
                     result.put("listingId", listingId);
@@ -189,8 +193,12 @@ public class MarketplaceMcpService {
                 if (createResult.containsKey("listingId")) {
                     String listingId = (String) createResult.get("listingId");
 
-                    List<Map<String, Object>> matches = matchingEngine.findMatchesForListing(
-                        listingId, 3, new BigDecimal("0.6"));
+                    Map<String, Object> matchResult = ec.getService().sync()
+                        .name("marketplace.process#AllMatching")
+                        .parameters(Map.of("listingId", listingId, "maxResults", 3, "minScore", new BigDecimal("0.6")))
+                        .call();
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> matches = (List<Map<String, Object>>) matchResult.getOrDefault("matches", new ArrayList<>());
 
                     result.put("success", true);
                     result.put("listingId", listingId);
@@ -256,8 +264,12 @@ public class MarketplaceMcpService {
             List<Map<String, Object>> allMatches = new ArrayList<>();
             for (EntityValue listing : merchantListings) {
                 String listingId = listing.getString("listingId");
-                List<Map<String, Object>> matches = matchingEngine.findMatchesForListing(
-                    listingId, 2, new BigDecimal("0.5"));
+                Map<String, Object> matchResult = ec.getService().sync()
+                    .name("marketplace.process#AllMatching")
+                    .parameters(Map.of("listingId", listingId, "maxResults", 2, "minScore", new BigDecimal("0.5")))
+                    .call();
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> matches = (List<Map<String, Object>>) matchResult.getOrDefault("matches", new ArrayList<>());
 
                 for (Map<String, Object> match : matches) {
                     match.put("sourceListing", listing);
