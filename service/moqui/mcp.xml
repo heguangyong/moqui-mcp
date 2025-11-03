@@ -419,4 +419,192 @@
         </actions>
     </service>
 
+    <!-- Telegram 消息处理入口 -->
+    <service verb="handle" noun="TelegramMessage" authenticate="false" type="script"
+             location="component://moqui-mcp/src/main/groovy/TelegramServices.groovy">
+        <in-parameters>
+            <parameter name="update" type="Map"/>
+            <parameter name="message" type="Map"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="success" type="Boolean"/>
+            <parameter name="aiResponse"/>
+            <parameter name="chatId"/>
+            <parameter name="intent"/>
+            <parameter name="matches" type="List"/>
+            <parameter name="error"/>
+            <parameter name="response" type="Map"/>
+        </out-parameters>
+    </service>
+
+    <!-- 语音消息处理服务 -->
+    <service verb="process" noun="VoiceMessage" authenticate="false">
+        <description>处理语音消息转文字和智能回复</description>
+        <in-parameters>
+            <parameter name="messageType" required="true"/>
+            <parameter name="attachmentInfo" type="Map" required="true"/>
+            <parameter name="sessionId"/>
+            <parameter name="merchantId"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="success" type="Boolean"/>
+            <parameter name="aiResponse"/>
+            <parameter name="intent"/>
+            <parameter name="transcribedText"/>
+            <parameter name="error"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                try {
+                    ec.logger.info("Processing voice message: ${messageType}, fileId: ${attachmentInfo?.fileId}")
+
+                    // 直接调用Java类处理语音消息
+                    def marketplaceService = new org.moqui.mcp.MarketplaceMcpService(ec)
+
+                    def parameters = [
+                        sessionId: sessionId ?: "voice_session_${System.currentTimeMillis()}",
+                        message: "[Voice Message]",
+                        merchantId: merchantId ?: "voice_user_${System.currentTimeMillis()}",
+                        messageType: messageType,
+                        attachmentInfo: attachmentInfo
+                    ]
+
+                    def result = marketplaceService.processMarketplaceMessage(parameters)
+
+                    success = result.success ?: false
+                    aiResponse = result.aiResponse
+                    intent = result.intent
+                    transcribedText = result.transcribedText
+
+                    ec.logger.info("Voice message processing result: success=${success}, intent=${intent}")
+
+                } catch (Exception e) {
+                    ec.logger.error("Error in voice message processing service: ${e.message}", e)
+                    success = false
+                    error = e.message
+                    aiResponse = "🎙️ 语音消息处理出错，请用文字描述您的需求。"
+                }
+            ]]></script>
+        </actions>
+    </service>
+
+    <!-- 手动发送Telegram消息 -->
+    <service verb="send" noun="TelegramMessage">
+        <description>从管理后台向Telegram会话发送消息并记录日志</description>
+        <in-parameters>
+            <parameter name="sessionId" required="true"/>
+            <parameter name="messageText" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="success" type="Boolean"/>
+            <parameter name="error"/>
+            <parameter name="responseBody"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                import groovy.json.JsonOutput
+                import java.net.URI
+                import java.net.http.HttpClient
+                import java.net.http.HttpRequest
+                import java.net.http.HttpResponse
+                import java.time.Duration
+
+                success = false
+                String trimmedMessage = messageText?.trim()
+                if (!trimmedMessage) {
+                    error = "消息内容不能为空"
+                    ec.message.addError(error)
+                    return
+                }
+
+                def sessionValue = ec.entity.find("mcp.dialog.McpDialogSession")
+                    .condition("sessionId", sessionId)
+                    .disableAuthz()
+                    .one()
+
+                if (!sessionValue) {
+                    error = "未找到对应会话: ${sessionId}"
+                    ec.message.addError(error)
+                    return
+                }
+
+                String chatId = sessionId
+                if (chatId.startsWith("telegram_")) {
+                    chatId = chatId.substring("telegram_".length())
+                }
+                if (!chatId) {
+                    error = "无法解析Telegram聊天ID"
+                    ec.message.addError(error)
+                    return
+                }
+
+                String botToken = System.getProperty("telegram.bot.token") ?:
+                                  System.getProperty("mcp.telegram.bot.token") ?:
+                                  System.getenv("TELEGRAM_BOT_TOKEN") ?:
+                                  ec.ecfi.getConfValue("telegram.bot.token")
+                if (!botToken) {
+                    error = "未配置Telegram Bot Token"
+                    ec.logger.warn(error)
+                    ec.message.addError(error)
+                    return
+                }
+
+                HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(20))
+                    .build()
+
+                Map requestPayload = [
+                    chat_id   : chatId,
+                    text      : trimmedMessage,
+                    parse_mode: "Markdown"
+                ]
+                String requestBody = JsonOutput.toJson(requestPayload)
+
+                HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.telegram.org/bot${botToken}/sendMessage"))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .timeout(Duration.ofSeconds(30))
+                    .build()
+
+                HttpResponse<String> httpResponse
+                try {
+                    httpResponse = client.send(httpRequest, HttpResponse.BodyHandlers.ofString())
+                } catch (Exception sendException) {
+                    error = "发送Telegram消息失败: ${sendException.message}"
+                    ec.logger.error("发送Telegram消息异常", sendException)
+                    ec.message.addError(error)
+                    return
+                }
+
+                responseBody = httpResponse?.body()
+                if (!httpResponse || httpResponse.statusCode() != 200) {
+                    error = "Telegram返回错误: HTTP ${httpResponse?.statusCode()}"
+                    ec.logger.warn("Telegram发送失败，status=${httpResponse?.statusCode()}, body=${responseBody}")
+                    ec.message.addError(error)
+                    return
+                }
+
+                // 记录消息
+                ec.service.sync().name("create#mcp.dialog.McpDialogMessage").parameters([
+                    sessionId    : sessionId,
+                    messageId    : "MSG_${System.currentTimeMillis()}",
+                    messageType  : "assistant-ui",
+                    aiResponse   : trimmedMessage,
+                    merchantId   : sessionValue.merchantId,
+                    processedDate: ec.user.nowTimestamp,
+                    intent       : "MANUAL_REPLY"
+                ]).disableAuthz().call()
+
+                // 更新会话最近时间
+                ec.service.sync().name("update#mcp.dialog.McpDialogSession").parameters([
+                    sessionId        : sessionId,
+                    lastModifiedDate : ec.user.nowTimestamp
+                ]).disableAuthz().call()
+
+                success = true
+            ]]></script>
+        </actions>
+    </service>
+
 </services>

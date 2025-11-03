@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd"
+          package-name="moqui.mcp.McpServices">
+
+    <!-- Compatibility wrapper: delegates legacy service names to the new consolidated definitions -->
+    <service verb="handle" noun="TelegramMessage" authenticate="false">
+        <in-parameters>
+            <parameter name="update" type="Map"/>
+            <parameter name="message" type="Map"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="success" type="Boolean"/>
+            <parameter name="aiResponse"/>
+            <parameter name="chatId"/>
+            <parameter name="intent"/>
+            <parameter name="matches" type="List"/>
+            <parameter name="error"/>
+            <parameter name="response" type="Map"/>
+        </out-parameters>
+        <actions>
+            <service-call name="moqui.mcp.handle#TelegramMessage" in-map="context" out-map="context"/>
+        </actions>
+    </service>
+
+</services>

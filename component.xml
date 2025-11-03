@@ -7,6 +7,7 @@
     <!-- Service 定义文件 -->
     <service-list>
         <service location="component://moqui-mcp/service/moqui/mcp.xml"/>
+        <service location="component://moqui-mcp/service/moqui/mcp_compat.xml"/>
     </service-list>
 
     <!-- Entity 定义文件 -->
