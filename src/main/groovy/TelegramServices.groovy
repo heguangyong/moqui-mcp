@@ -482,12 +482,56 @@ Map processProjectCommand(String rawCommand, String merchantId, def executionCon
     String identifier = tokens.size() > 2 ? tokens[2] : null
 
     List<String> statusKeywords = ["status", "sync", "状态", "tongbu", "同步"]
-    List<String> taskKeywords = ["tasks", "task", "list", "renwu", "任务"]
+    List<String> taskKeywords = ["tasks", "task", "renwu", "任务"]
+    List<String> listKeywords = ["list", "overview", "projectlist", "列表"]
+
+    if ("create".equals(action)) {
+        String name = tokens.size() > 2 ? tokens.subList(2, tokens.size()).join(" ") : null
+        if (!name) {
+            return [handled: true, success: false,
+                    message: "📋 创建项目\n请使用 `/project create 项目名称`，例如：`/project create 装修项目A`"]
+        }
+        try {
+            def createResult = executionContext.service.sync().name("marketplace.ProjectServices.create#Project").parameters([
+                    projectName: name,
+                    projectType: "GENERAL"
+            ]).call()
+            return [handled: true, success: true,
+                    message: "✅ 已创建项目：${name}\n项目ID: ${createResult.projectId}\n可使用 `/project status ${createResult.projectId}` 查看进度。"]
+        } catch (Exception e) {
+            return [handled: true, success: false,
+                    message: "⚠️ 创建项目失败：${e.message ?: '请稍后再试'}"]
+        }
+    }
+
+    if (action in listKeywords) {
+        try {
+            def listResult = executionContext.service.sync().name("marketplace.ProjectServices.get#ProjectList")
+                    .parameters([limit: 5]).call()
+            List<Map> projects = listResult.projects ?: []
+            if (!projects) {
+                return [handled: true, success: true, message: "🗂️ 目前没有项目记录，使用 `/project create 项目名称` 开始一个新项目。"]
+            }
+            StringBuilder sb = new StringBuilder("🗂️ 最近项目：\n")
+            projects.eachWithIndex { Map proj, int idx ->
+                sb.append("${idx + 1}. ${proj.projectName ?: proj.projectId}\n")
+                sb.append("   ID: ${proj.projectId} | 状态: ${proj.status ?: 'PLANNING'}\n")
+            }
+            sb.append("\n使用 `/project status [项目ID]` 查看详细状态。")
+            return [handled: true, success: true, message: sb.toString()]
+        } catch (Exception e) {
+            return [handled: true, success: false,
+                    message: "⚠️ 无法获取项目列表：${e.message ?: '请稍后再试'}"]
+        }
+    }
+
     if (!(action in statusKeywords || action in taskKeywords)) {
         return [handled: true, success: true,
                 message: "⚙️ 项目命令用法:\n" +
                         "/project status [项目ID]  查看项目状态\n" +
-                        "/project tasks [项目ID]   查看任务列表\n\n" +
+                        "/project tasks [项目ID]   查看任务列表\n" +
+                        "/project list             最近项目概览\n" +
+                        "/project create 名称      新建项目\n\n" +
                         "示例:\n/project status PROJECT-1001\n/project tasks WORK1003"]
     }
 
