@@ -16,10 +16,10 @@
         <field name="preferredCategories" type="text-medium"/>
         <field name="createdDate" type="date-time"/>
         <field name="lastModifiedDate" type="date-time"/>
-        <relationship type="one" related="mantle.party.Party" short-alias="customer">
+        <relationship type="one" related="mantle.party.Party" short-alias="customer" title="Customer">
             <key-map field-name="customerId" related="partyId"/>
         </relationship>
-        <relationship type="one" related="mantle.party.Party" short-alias="merchant">
+        <relationship type="one" related="mantle.party.Party" short-alias="merchant" title="Merchant">
             <key-map field-name="merchantId" related="partyId"/>
         </relationship>
         <relationship type="one" related="mantle.work.effort.WorkEffort" short-alias="project">

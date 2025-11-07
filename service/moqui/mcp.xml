@@ -437,6 +437,11 @@
         </out-parameters>
     </service>
 
+    <service verb="classify" noun="UserIntent" authenticate="false">
+        <description>Telegram/MCP共用：调用业务意图分类</description>
+        <implements service="mcp.routing.classify#UserIntent"/>
+    </service>
+
     <!-- 语音消息处理服务 -->
     <service verb="process" noun="VoiceMessage" authenticate="false">
         <description>处理语音消息转文字和智能回复</description>

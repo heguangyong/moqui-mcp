@@ -116,8 +116,10 @@
 
     <!-- 示例客户数据 - 正确的依赖顺序 -->
     <!-- 1. 首先创建Party -->
-    <mantle.party.Party partyId="DEMO_CUSTOMER_001" partyTypeEnumId="PtyPerson"
-                        firstName="张" lastName="老板"/>
+    <mantle.party.Party partyId="DEMO_CUSTOMER_001" partyTypeEnumId="PtyPerson"/>
+
+    <!-- 2. 创建Person实体 -->
+    <mantle.party.Person partyId="DEMO_CUSTOMER_001" firstName="张" lastName="老板"/>
 
     <!-- 2. 然后创建ContactMech -->
     <mantle.party.contact.ContactMech contactMechId="DEMO_EMAIL_001"
