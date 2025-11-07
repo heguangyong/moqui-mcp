@@ -537,6 +537,7 @@ Map processProjectCommand(String rawCommand, String merchantId, def executionCon
 
     StringBuilder sb = new StringBuilder()
     sb.append("📌 HiveMind 项目状态\n")
+    if (projectRecord.projectName) sb.append("• 项目名称: ${projectRecord.projectName}\n")
     sb.append("• 项目ID: ${projectRecord.hiveMindProjectId ?: '尚未同步'}\n")
     if (projectRecord.workEffortId) sb.append("• WorkEffort: ${projectRecord.workEffortId}\n")
     sb.append("• 关联需求: ${listingName}\n")
@@ -654,11 +655,23 @@ Map resolveHiveMindProjectRecord(String identifier, String merchantId, def execu
 
     Map projectMap = [
             workEffortId      : projectValue.workEffortId,
+            projectId         : projectValue.projectId,
             hiveMindProjectId : projectValue.hiveMindProjectId,
             listingId         : projectValue.listingId,
             syncStatus        : projectValue.syncStatus,
             lastSyncDate      : projectValue.lastSyncDate
     ]
+
+    if (projectValue.projectId) {
+        def projectInfo = entity.find("marketplace.project.ProjectInfo")
+                .condition("projectId", projectValue.projectId)
+                .disableAuthz()
+                .one()
+        if (projectInfo) {
+            projectMap.projectName = projectInfo.projectName
+            projectMap.projectDescription = projectInfo.description
+        }
+    }
 
     if (projectMap.listingId) {
         def listing = entity.find("marketplace.listing.Listing")
