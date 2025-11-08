@@ -1079,33 +1079,57 @@ void handleSmartClassification(String chatId, String messageText, String session
         .one()
     String merchantId = sessionValue?.merchantId ?: chatId
 
-    switch (category) {
-        case "SUPPLY_DEMAND_MATCHING":
-            MarketplaceMcpService marketplaceService = new MarketplaceMcpService(ec)
-            Map<String, Object> result = marketplaceService.processMarketplaceMessage([
-                sessionId : sessionId,
-                message   : messageText,
-                merchantId: merchantId
-            ])
-            String response = (result.aiResponse ?: result.error ?: "处理完成。").toString()
-            sendTelegramMessage(chatId, response, httpClient, ec, createSupplyDemandSubMenu())
+    Map routeResult = [:]
+    try {
+        routeResult = ec.service.sync().name("mcp.routing.route#ToBusinessModule").parameters([
+                businessCategory   : category,
+                specificFunction   : classifyResult.specificFunction,
+                userMessage        : messageText,
+                chatId             : chatId,
+                sessionId          : sessionId,
+                merchantId         : merchantId,
+                extractedParameters: classifyResult.extractedParameters
+        ]).call()
+    } catch (Exception e) {
+        ec.logger.error("业务路由服务调用失败: ${e.message}", e)
+    }
+
+    String followup = routeResult?.responseMessage
+    if (!followup) {
+        followup = [
+            "SUPPLY_DEMAND_MATCHING": "我已记录您的供需需求，可使用菜单继续操作。",
+            "HIVEMIND_PROJECT"      : "蜂巢项目管理将帮助您独立跟踪项目，请使用 `/project` 指令继续。",
+            "ECOMMERCE"             : "电商模块将协助处理商品、库存与订单。",
+            "ERP"                   : "大理石 ERP 正在准备更多功能，稍后为您开放。"
+        ][category] ?: "我会持续跟进您的请求。"
+    }
+
+    String nextAction = routeResult?.nextAction ?: (
+            category == "HIVEMIND_PROJECT" ? "PROJECT_MENU" :
+            category == "ECOMMERCE" ? "ECOMMERCE_MENU" :
+            category == "ERP" ? "ERP_MENU" : "SUPPLY_MENU"
+    )
+
+    Map keyboard = null
+    switch (nextAction) {
+        case "SUPPLY_MENU":
+            keyboard = createSupplyDemandSubMenu()
             break
-        case "HIVEMIND_PROJECT":
-            sendTelegramMessage(chatId,
-                "🏗️ 您的需求更适合蜂巢项目管理，我将把信息同步到项目中心，稍后会有专人联系您。",
-                httpClient, ec)
+        case "PROJECT_MENU":
+            keyboard = createProjectSubMenu()
             break
-        case "ECOMMERCE":
-            sendTelegramMessage(chatId,
-                "🛒 已识别为电商相关需求，我们会把信息路由到流行电商服务。",
-                httpClient, ec)
+        case "ECOMMERCE_MENU":
+            keyboard = createEcommerceSubMenu()
             break
-        case "ERP":
-            sendTelegramMessage(chatId,
-                "💼 您的需求属于大理石 ERP，我们正在准备标准化流程。",
-                httpClient, ec)
+        case "ERP_MENU":
+            keyboard = null
+            break
+        case "MAIN_MENU":
+            keyboard = createMainMenuKeyboard()
             break
     }
+
+    sendTelegramMessage(chatId, followup, httpClient, ec, keyboard)
 }
 
 // Helper function for downloading Telegram files

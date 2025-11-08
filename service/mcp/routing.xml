@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd"
+          package-name="mcp.routing">
+
+    <service verb="classify" noun="UserIntent" authenticate="false">
+        <description>根据用户消息粗分业务分类与置信度</description>
+        <in-parameters>
+            <parameter name="userMessage" required="true"/>
+            <parameter name="messageType" default-value="text"/>
+            <parameter name="chatId"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="businessCategory"/>
+            <parameter name="specificFunction"/>
+            <parameter name="confidence" type="BigDecimal"/>
+            <parameter name="extractedParameters" type="Map"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            import java.math.BigDecimal
+
+            String raw = userMessage ?: ""
+            String message = raw.toLowerCase()
+
+            List<String> supplyKeywords = ["供应","需求","采购","销售","批发","零售","库存","价格","供给","求购","订货","买","卖"]
+            List<String> projectKeywords = ["项目","任务","团队","进度","里程碑","搭建","施工","装修","协作","阶段","验收","版本"]
+            List<String> ecommerceKeywords = ["订单","商城","店铺","客户","物流","促销","营销","库存","sku","商品","上架"]
+            List<String> erpKeywords = ["财务","报表","审批","成本","人事","生产","制造","计划","排程","物料","供应链","erp","工单"]
+
+            int supplyScore = supplyKeywords.count { message.contains(it) }
+            int projectScore = projectKeywords.count { message.contains(it) }
+            int ecommerceScore = ecommerceKeywords.count { message.contains(it) }
+            int erpScore = erpKeywords.count { message.contains(it) }
+
+            Map<String, Integer> scoring = [
+                SUPPLY_DEMAND_MATCHING: supplyScore,
+                HIVEMIND_PROJECT      : projectScore,
+                ECOMMERCE             : ecommerceScore,
+                ERP                   : erpScore
+            ]
+
+            String category = "SUPPLY_DEMAND_MATCHING"
+            Integer maxScore = 0
+            scoring.each { key, val ->
+                if (val > maxScore) {
+                    maxScore = val
+                    category = key
+                }
+            }
+
+            String resolvedFunction = null
+            List<String> publishSupplyKeywords = ["发布","上架","供货","供应"]
+            List<String> publishDemandKeywords = ["采购","求购","寻找","需求"]
+            List<String> matchKeywords = ["匹配","推荐","撮合","智能"]
+
+            if (category == "SUPPLY_DEMAND_MATCHING") {
+                if (matchKeywords.any { message.contains(it) }) {
+                    resolvedFunction = "FIND_MATCHES"
+                } else if (publishSupplyKeywords.any { message.contains(it) }) {
+                    resolvedFunction = "PUBLISH_SUPPLY"
+                } else if (publishDemandKeywords.any { message.contains(it) }) {
+                    resolvedFunction = "PUBLISH_DEMAND"
+                } else {
+                    resolvedFunction = "GENERAL_INQUIRY"
+                }
+            } else if (category == "HIVEMIND_PROJECT") {
+                if (message.contains("创建") || message.contains("立项") || message.contains("new")) {
+                    resolvedFunction = "PROJECT_CREATE"
+                } else if (message.contains("列表") || message.contains("概览") || message.contains("overview")) {
+                    resolvedFunction = "PROJECT_LIST"
+                } else if (message.contains("任务") || message.contains("进度") || message.contains("状态")) {
+                    resolvedFunction = "PROJECT_STATUS"
+                } else {
+                    resolvedFunction = "PROJECT_GUIDE"
+                }
+            } else if (category == "ECOMMERCE") {
+                if (message.contains("订单") || message.contains("销量") || message.contains("销售")) {
+                    resolvedFunction = "ECOMMERCE_ORDER"
+                } else if (message.contains("库存") || message.contains("补货")) {
+                    resolvedFunction = "ECOMMERCE_INVENTORY"
+                } else if (message.contains("商品") || message.contains("sku") || message.contains("上架")) {
+                    resolvedFunction = "ECOMMERCE_PRODUCT"
+                } else {
+                    resolvedFunction = "ECOMMERCE_GUIDE"
+                }
+            } else if (category == "ERP") {
+                if (message.contains("生产") || message.contains("排产") || message.contains("工单")) {
+                    resolvedFunction = "ERP_PRODUCTION"
+                } else if (message.contains("财务") || message.contains("成本") || message.contains("核算")) {
+                    resolvedFunction = "ERP_FINANCE"
+                } else {
+                    resolvedFunction = "ERP_GUIDE"
+                }
+            }
+
+            BigDecimal baseConfidence = maxScore ? new BigDecimal(Math.min(maxScore * 0.3 + 0.4, 0.95)) : new BigDecimal("0.4")
+            Map<String, Object> extracted = [
+                    originalMessage : raw,
+                    messageLength   : raw.length(),
+                    containsNumber  : (raw =~ /\d+/).find(),
+                    containsCurrency: raw.contains("¥") || raw.contains("￥") || raw.contains("元") || raw.toLowerCase().contains("cny"),
+                    detectedKeywords: (raw =~ /[\p{InCJKUnifiedIdeographs}]+/).collect { it }
+            ]
+
+            businessCategory = category
+            specificFunction = resolvedFunction
+            confidence = baseConfidence
+            extractedParameters = extracted
+        ]]></script></actions>
+    </service>
+
+    <service verb="route" noun="ToBusinessModule" authenticate="false">
+        <description>根据分类结果路由到具体业务模块并给出回复建议</description>
+        <in-parameters>
+            <parameter name="businessCategory" required="true"/>
+            <parameter name="specificFunction"/>
+            <parameter name="userMessage"/>
+            <parameter name="chatId"/>
+            <parameter name="sessionId"/>
+            <parameter name="merchantId"/>
+            <parameter name="extractedParameters" type="Map"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="routingResult" type="Map"/>
+            <parameter name="nextAction"/>
+            <parameter name="responseMessage"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            import java.math.BigDecimal
+
+            Map<String, Object> routeData = [:]
+            String resolvedCategory = (businessCategory ?: "SUPPLY_DEMAND_MATCHING").toUpperCase()
+            String resolvedFunction = (specificFunction ?: "GENERAL_INQUIRY").toUpperCase()
+            String response = ""
+            String nextActionFlag = "MAIN_MENU"
+
+            Closure<String> formatPrice = { Object priceValue ->
+                if (!priceValue) return ""
+                BigDecimal bd
+                if (priceValue instanceof BigDecimal) {
+                    bd = (BigDecimal) priceValue
+                } else {
+                    bd = new BigDecimal(priceValue.toString())
+                }
+                return ec.l10n.formatCurrency(bd, "CNY")
+            }
+
+            switch (resolvedCategory) {
+                case "SUPPLY_DEMAND_MATCHING":
+                    nextActionFlag = "SUPPLY_MENU"
+                    if (resolvedFunction == "FIND_MATCHES") {
+                        try {
+                            Map searchResult = ec.service.sync().name("marketplace.MarketplaceServices.search#Listings").parameters([
+                                    pageSize: 5
+                            ]).call()
+                            List<Map> previewList = []
+                            StringBuilder sb = new StringBuilder("🔍 为您找到以下供需线索：\n")
+                            def listings = searchResult.listings instanceof List ? (List) searchResult.listings : []
+                            int displayIndex = 0
+                            listings.each { def value ->
+                                if (displayIndex >= 5) return
+                                Map item = value instanceof Map ? value : value?.getMap(false)
+                                if (!item) return
+                                previewList.add(item)
+                                String title = item.title ?: item.listingId ?: "未命名信息"
+                                String category = item.category ?: "--"
+                                String priceText = item.priceMin ? formatPrice(item.priceMin) :
+                                        (item.priceMax ? formatPrice(item.priceMax) : "价格待沟通")
+                                sb.append("${++displayIndex}. ${title} · ${category} · ${priceText}\n")
+                            }
+                            if (displayIndex == 0) {
+                                response = "🔍 暂未检索到匹配结果，可以尝试提供更具体的品类、数量或预算信息。"
+                            } else {
+                                response = sb.toString() + "\n可继续点击“发现匹配”查看详情或描述更具体的需求。"
+                            }
+                            routeData.matchPreview = previewList
+                        } catch (Exception e) {
+                            ec.logger.warn("Routing匹配检索失败: ${e.message}")
+                            response = "匹配服务暂时不可用，请稍后再试。"
+                        }
+                    } else if (resolvedFunction in ["PUBLISH_SUPPLY","PUBLISH_DEMAND"]) {
+                        boolean isSupply = resolvedFunction == "PUBLISH_SUPPLY"
+                        response = isSupply ?
+                                "📢 发布供应：请直接描述产品、数量、价格与地区，或点击“发布信息”使用引导表单。" :
+                                "📥 发布需求：请告知想采购的品类、数量、预算与交付地点，系统会自动记录并推送给合适的供应方。"
+                    } else {
+                        if (sessionId && merchantId && userMessage) {
+                            try {
+                                Map aiResult = ec.service.sync().name("moqui.mcp.process#MarketplaceMessage").parameters([
+                                        sessionId : sessionId,
+                                        merchantId: merchantId,
+                                        message   : userMessage
+                                ]).call()
+                                response = (aiResult.aiResponse ?: "我已记录您的需求，稍后会给出建议。").toString()
+                                routeData.intent = aiResult.intent
+                                routeData.matches = aiResult.matches
+                            } catch (Exception e) {
+                                ec.logger.warn("Routing调用MarketplaceMessage失败: ${e.message}")
+                                response = "我已记录您的需求，会尽快给出匹配建议。"
+                            }
+                        } else {
+                            response = "请描述想发布的供需信息，或使用菜单中的功能继续操作。"
+                        }
+                    }
+                    break
+
+                case "HIVEMIND_PROJECT":
+                    nextActionFlag = "PROJECT_MENU"
+                    if (resolvedFunction in ["PROJECT_LIST","PROJECT_STATUS"]) {
+                        try {
+                            Map projectResult = ec.service.sync().name("marketplace.ProjectServices.get#ProjectList").parameters([
+                                    limit: 5
+                            ]).call()
+                            List<Map> projects = projectResult.projects ?: []
+                            routeData.projects = projects
+                            if (!projects) {
+                                response = "当前还没有项目记录，可通过 `/project create 项目名称` 直接创建。"
+                            } else {
+                                StringBuilder sb = new StringBuilder("🗂️ 最近项目：\n")
+                                projects.eachWithIndex { Map proj, int idx ->
+                                    sb.append("${idx + 1}. ${proj.projectName ?: proj.projectId} · 状态 ${proj.status ?: 'PLANNING'}\n")
+                                }
+                                sb.append("\n使用 `/project status 项目ID` 查询具体进度。")
+                                response = sb.toString()
+                            }
+                        } catch (Exception e) {
+                            ec.logger.warn("Routing加载项目列表失败: ${e.message}")
+                            response = "项目列表暂不可用，请稍后再试或通过 `/project status` 查询。"
+                        }
+                    } else if (resolvedFunction == "PROJECT_CREATE") {
+                        response = "📋 创建项目：发送 `/project create 项目名称`，或在控制台填写更详细的预算、周期、客户信息。"
+                    } else {
+                        response = "蜂巢项目管理可用于独立跟踪项目、任务与成本，点击菜单查看更多操作。"
+                    }
+                    break
+
+                case "ECOMMERCE":
+                    nextActionFlag = "ECOMMERCE_MENU"
+                    try {
+                        def productFind = ec.entity.find("marketplace.ecommerce.EcommerceProduct")
+                                .condition("status", "ACTIVE")
+                                .orderBy("-lastUpdatedDate")
+                                .limit(5)
+                        def products = productFind.list()
+                        routeData.products = products?.collect { it.getMap(false) }
+                        if (products && !products.isEmpty()) {
+                            StringBuilder sb = new StringBuilder("🛍️ 最近上架商品：\n")
+                            int index = 0
+                            products.each { val ->
+                                if (index >= 5) return
+                                Map prod = val.getMap(false)
+                                String name = prod.productName ?: prod.ecommerceProductId ?: "未命名商品"
+                                String priceText = prod.price ? formatPrice(prod.price) : "待定价"
+                                sb.append("${++index}. ${name} · ${priceText}\n")
+                            }
+                            sb.append("\n可继续使用菜单管理库存、订单与客户。")
+                            response = sb.toString()
+                        } else {
+                            response = "电商模块已准备就绪，请先创建商品后再查看库存与订单。"
+                        }
+                    } catch (Exception e) {
+                        ec.logger.warn("Routing电商概览失败: ${e.message}")
+                        response = "电商数据暂不可用，请稍后再试。"
+                    }
+                    break
+
+                case "ERP":
+                    nextActionFlag = "ERP_MENU"
+                    response = "💼 大理石 ERP 模块正在适配生产计划、成本与库存流程，稍后将开放测试入口。"
+                    break
+
+                default:
+                    nextActionFlag = "MAIN_MENU"
+                    response = "我还在学习如何处理该类别的请求，请先选择具体业务分类。"
+                    break
+            }
+
+            routingResult = routeData
+            nextAction = nextActionFlag
+            responseMessage = response ?: "功能建设中，稍后为您提供更多指引。"
+        ]]></script></actions>
+    </service>
+
+</services>
