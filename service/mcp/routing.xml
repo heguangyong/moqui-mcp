@@ -18,14 +18,18 @@
         </out-parameters>
         <actions><script><![CDATA[
             import java.math.BigDecimal
+            import java.math.RoundingMode
 
             String raw = userMessage ?: ""
             String message = raw.toLowerCase()
 
             List<String> supplyKeywords = ["供应","需求","采购","销售","批发","零售","库存","价格","供给","求购","订货","买","卖"]
-            List<String> projectKeywords = ["项目","任务","团队","进度","里程碑","搭建","施工","装修","协作","阶段","验收","版本"]
-            List<String> ecommerceKeywords = ["订单","商城","店铺","客户","物流","促销","营销","库存","sku","商品","上架"]
+            List<String> projectKeywords = ["项目","任务","团队","进度","里程碑","搭建","施工","装修","协作","阶段","验收","版本","交付","计划"]
+            List<String> ecommerceKeywords = ["订单","商城","店铺","客户","物流","促销","营销","库存","sku","商品","上架","补货","铺货","渠道"]
             List<String> erpKeywords = ["财务","报表","审批","成本","人事","生产","制造","计划","排程","物料","供应链","erp","工单"]
+            List<String> ecommerceB2BKeywords = ["批发","B端","渠道","分销","经销","补货","进货","供货","团购","合伙人","代理","商户","门店","对账"]
+            List<String> ecommerceProjectKeywords = ["项目","展会","展台","交付","实施","落地","方案","布置","搭建","展陈","装修"]
+            List<String> ecommerceSocialKeywords = ["直播","短视频","达人","带货","私域","社群","粉丝","种草","小红书","抖音","快手"]
 
             int supplyScore = supplyKeywords.count { message.contains(it) }
             int projectScore = projectKeywords.count { message.contains(it) }
@@ -49,6 +53,7 @@
             }
 
             String resolvedFunction = null
+            String ecommerceIntent = null
             List<String> publishSupplyKeywords = ["发布","上架","供货","供应"]
             List<String> publishDemandKeywords = ["采购","求购","寻找","需求"]
             List<String> matchKeywords = ["匹配","推荐","撮合","智能"]
@@ -83,6 +88,21 @@
                 } else {
                     resolvedFunction = "ECOMMERCE_GUIDE"
                 }
+                if (ecommerceB2BKeywords.any { message.contains(it) }) {
+                    ecommerceIntent = "B2B_PURCHASE"
+                } else if (ecommerceProjectKeywords.any { message.contains(it) }) {
+                    ecommerceIntent = "PROJECT_EXPANSION"
+                } else if (ecommerceSocialKeywords.any { message.contains(it) }) {
+                    ecommerceIntent = "SOCIAL_RETAIL"
+                } else {
+                    ecommerceIntent = "GENERAL_ECOMMERCE"
+                }
+                if ("B2B_PURCHASE".equals(ecommerceIntent) && resolvedFunction == "ECOMMERCE_PRODUCT") {
+                    resolvedFunction = "ECOMMERCE_ORDER"
+                }
+                if ("PROJECT_EXPANSION".equals(ecommerceIntent) && resolvedFunction == "ECOMMERCE_ORDER") {
+                    resolvedFunction = "ECOMMERCE_PRODUCT"
+                }
             } else if (category == "ERP") {
                 if (message.contains("生产") || message.contains("排产") || message.contains("工单")) {
                     resolvedFunction = "ERP_PRODUCTION"
@@ -94,6 +114,13 @@
             }
 
             BigDecimal baseConfidence = maxScore ? new BigDecimal(Math.min(maxScore * 0.3 + 0.4, 0.95)) : new BigDecimal("0.4")
+            if (category == "ECOMMERCE" && ecommerceIntent in ["B2B_PURCHASE","PROJECT_EXPANSION"]) {
+                BigDecimal bonus = new BigDecimal("0.03")
+                baseConfidence = baseConfidence.add(bonus)
+                if (baseConfidence.compareTo(new BigDecimal("0.95")) > 0) {
+                    baseConfidence = new BigDecimal("0.95")
+                }
+            }
             Map<String, Object> extracted = [
                     originalMessage : raw,
                     messageLength   : raw.length(),
@@ -101,6 +128,10 @@
                     containsCurrency: raw.contains("¥") || raw.contains("￥") || raw.contains("元") || raw.toLowerCase().contains("cny"),
                     detectedKeywords: (raw =~ /[\p{InCJKUnifiedIdeographs}]+/).collect { it }
             ]
+            if (ecommerceIntent) {
+                extracted.ecommerceIntent = ecommerceIntent
+                extracted.intentTags = (extracted.intentTags ?: []) + ["ecommerce", ecommerceIntent.toLowerCase()]
+            }
 
             businessCategory = category
             specificFunction = resolvedFunction
@@ -236,31 +267,53 @@
 
                 case "ECOMMERCE":
                     nextActionFlag = "ECOMMERCE_MENU"
+                    String ecommerceIntent = (extractedParameters?.ecommerceIntent ?: "GENERAL_ECOMMERCE").toUpperCase()
                     try {
-                        def productFind = ec.entity.find("marketplace.ecommerce.EcommerceProduct")
-                                .condition("status", "ACTIVE")
-                                .orderBy("-lastUpdatedDate")
-                                .limit(5)
-                        def products = productFind.list()
-                        routeData.products = products?.collect { it.getMap(false) }
-                        if (products && !products.isEmpty()) {
-                            StringBuilder sb = new StringBuilder("🛍️ 最近上架商品：\n")
-                            int index = 0
-                            products.each { val ->
-                                if (index >= 5) return
-                                Map prod = val.getMap(false)
-                                String name = prod.productName ?: prod.ecommerceProductId ?: "未命名商品"
-                                String priceText = prod.price ? formatPrice(prod.price) : "待定价"
-                                sb.append("${++index}. ${name} · ${priceText}\n")
+                        Map recResult = ec.service.sync().name("marketplace.EcommerceServices.get#ProductRecommendations").parameters([
+                                limit               : 5,
+                                intentType          : ecommerceIntent,
+                                preferredCategoryId : extractedParameters?.preferredCategoryId
+                        ]).call()
+                        List<Map> recs = recResult.recommendations instanceof List ? recResult.recommendations : []
+                        routeData.recommendations = recs
+                        routeData.recommendationIntent = ecommerceIntent
+                        if (recs && !recs.isEmpty()) {
+                            String tone
+                            switch (ecommerceIntent) {
+                                case "B2B_PURCHASE": tone = "🔗 B端补货推荐"; break
+                                case "PROJECT_EXPANSION": tone = "🏗️ 项目扩展物料推荐"; break
+                                case "SOCIAL_RETAIL": tone = "📣 营销热卖推荐"; break
+                                default: tone = "🛍️ 智能商品推荐"; break
                             }
-                            sb.append("\n可继续使用菜单管理库存、订单与客户。")
+                            StringBuilder sb = new StringBuilder("${tone}\n")
+                            recs.eachWithIndex { Map rec, int idx ->
+                                String name = rec.productName ?: rec.ecommerceProductId ?: "未命名商品"
+                                String priceText = rec.price ? formatPrice(rec.price) : "待定价"
+                                sb.append("${idx + 1}. ${name} · ${priceText}\n")
+                                if (rec.avgRating) {
+                                    BigDecimal rating = rec.avgRating instanceof BigDecimal ?
+                                            (BigDecimal) rec.avgRating : new BigDecimal(rec.avgRating.toString())
+                                    sb.append("   ⭐️ ${rating.setScale(1, RoundingMode.HALF_UP)} /5 · 评价 ${rec.reviewCount ?: 0}\n")
+                                }
+                                if (rec.orderCount) {
+                                    sb.append("   📦 累计订单 ${rec.orderCount}\n")
+                                }
+                                if (rec.recommendationSource) {
+                                    sb.append("   来源：${rec.recommendationSource}\n")
+                                }
+                            }
+                            sb.append("\n可使用 `/product` 或 `/order` 指令继续操作")
+                            if (ecommerceIntent == "PROJECT_EXPANSION") {
+                                sb.append("，若需跟踪项目请使用 `/project create` 建档")
+                            }
+                            sb.append("。")
                             response = sb.toString()
                         } else {
-                            response = "电商模块已准备就绪，请先创建商品后再查看库存与订单。"
+                            response = "电商模块已准备就绪，请先创建商品或产生评价后再获取推荐。"
                         }
                     } catch (Exception e) {
-                        ec.logger.warn("Routing电商概览失败: ${e.message}")
-                        response = "电商数据暂不可用，请稍后再试。"
+                        ec.logger.warn("Routing电商推荐失败: ${e.message}")
+                        response = "电商推荐暂不可用，请稍后再试。"
                     }
                     break
 

@@ -67,4 +67,18 @@ along with this software (see the LICENSE.md file). If not, see
     <resource name="rocket-webhook" require-authentication="anonymous-all">
         <method type="post"><service name="moqui.mcp.process#RocketChatWebhook"/></method>
     </resource>
+
+    <!-- ==================== V2 统一响应格式API ==================== -->
+    <resource name="v2" require-authentication="anonymous-view">
+        <resource name="chat" require-authentication="anonymous-view">
+            <method type="post"><service name="moqui.mcp.chat#MessageV2"/></method>
+        </resource>
+        <resource name="recommendations" require-authentication="anonymous-all">
+            <method type="get"><service name="moqui.mcp.get#SmartRecommendationsV2"/></method>
+        </resource>
+        <resource name="sessions" require-authentication="anonymous-all">
+            <method type="get"><service name="moqui.mcp.get#DialogSessionsV2"/></method>
+            <method type="post"><service name="moqui.mcp.create#MarketplaceSessionV2"/></method>
+        </resource>
+    </resource>
 </resource>

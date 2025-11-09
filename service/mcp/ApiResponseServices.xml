@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <!-- ==================== MCP组件统一REST API响应包装服务 ==================== -->
+
+    <service verb="wrap" noun="McpApiResponse" authenticate="false" allow-remote="false">
+        <description>MCP组件统一REST API响应格式包装服务</description>
+        <in-parameters>
+            <parameter name="data" type="Object" required="false">
+                <description>MCP业务数据对象</description>
+            </parameter>
+            <parameter name="success" type="Boolean" default="true">
+                <description>操作是否成功</description>
+            </parameter>
+            <parameter name="code" type="Integer" default="200">
+                <description>HTTP状态码</description>
+            </parameter>
+            <parameter name="message" type="String" default="MCP操作成功">
+                <description>提示消息</description>
+            </parameter>
+            <parameter name="errors" type="List" required="false">
+                <description>错误信息列表</description>
+            </parameter>
+            <parameter name="sessionId" type="String" required="false">
+                <description>MCP会话ID</description>
+            </parameter>
+            <parameter name="aiProvider" type="String" required="false">
+                <description>AI提供商信息</description>
+            </parameter>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="response" type="Map">
+                <description>标准化的MCP REST响应</description>
+            </parameter>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                import groovy.json.JsonOutput
+                import java.util.UUID
+
+                // 生成请求ID
+                String actualRequestId = "mcp_req_${UUID.randomUUID().toString().substring(0, 8)}"
+
+                // 构建标准响应结构
+                Map standardResponse = [:]
+                standardResponse.success = success ?: true
+                standardResponse.code = code ?: 200
+                standardResponse.message = message ?: (success ? "MCP操作成功" : "MCP操作失败")
+
+                // MCP业务数据
+                if (data != null) {
+                    standardResponse.data = data
+                }
+
+                // 错误信息处理
+                if (errors && !errors.isEmpty()) {
+                    standardResponse.errors = errors
+                    standardResponse.success = false
+                    if (!code || code == 200) {
+                        standardResponse.code = 400
+                    }
+                }
+
+                // MCP专用元数据
+                Map meta = [:]
+                meta.timestamp = ec.user.nowTimestamp.time
+                meta.requestId = actualRequestId
+                meta.version = "1.0"
+                meta.component = "MCP-AI-Assistant"
+                meta.server = "Moqui-MCP-${ec.web.request.serverName}"
+
+                // MCP特有信息
+                if (sessionId) meta.sessionId = sessionId
+                if (aiProvider) meta.aiProvider = aiProvider
+                meta.supportedModalities = ["text", "speech", "image", "multimodal"]
+
+                standardResponse.meta = meta
+
+                response = standardResponse
+
+                // 错误时设置HTTP状态码
+                if (!success || (errors && !errors.isEmpty())) {
+                    ec.web.response.setStatus(code ?: 400)
+                }
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="wrap" noun="McpChatResponse" authenticate="false" allow-remote="false">
+        <description>MCP聊天响应包装</description>
+        <in-parameters>
+            <parameter name="chatData" type="Map" required="true">
+                <description>聊天数据</description>
+            </parameter>
+            <parameter name="sessionId" type="String" required="false">
+                <description>会话ID</description>
+            </parameter>
+            <parameter name="aiProvider" type="String" required="false">
+                <description>AI提供商</description>
+            </parameter>
+            <parameter name="tokensUsed" type="Integer" required="false">
+                <description>消耗的token数量</description>
+            </parameter>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="response" type="Map">
+                <description>标准化的聊天响应</description>
+            </parameter>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                // 调用统一包装服务
+                Map wrapResult = ec.service.sync().name("mcp.ApiResponseServices.wrap#McpApiResponse")
+                    .parameters([
+                        data: chatData,
+                        success: true,
+                        code: 200,
+                        message: "聊天响应成功",
+                        sessionId: sessionId,
+                        aiProvider: aiProvider
+                    ]).call()
+
+                // 添加聊天特有的元数据
+                Map responseData = wrapResult.response
+                if (tokensUsed) {
+                    responseData.meta.tokensUsed = tokensUsed
+                }
+                responseData.meta.responseType = "chat"
+
+                response = responseData
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="wrap" noun="McpErrorResponse" authenticate="false" allow-remote="false">
+        <description>MCP错误响应包装</description>
+        <in-parameters>
+            <parameter name="errorMessage" type="String" required="true">
+                <description>错误消息</description>
+            </parameter>
+            <parameter name="errorCode" type="Integer" default="500">
+                <description>错误代码</description>
+            </parameter>
+            <parameter name="sessionId" type="String" required="false">
+                <description>会话ID</description>
+            </parameter>
+            <parameter name="aiProviderError" type="Map" required="false">
+                <description>AI提供商错误详情</description>
+            </parameter>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="response" type="Map">
+                <description>标准化的MCP错误响应</description>
+            </parameter>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                // 构建错误信息列表
+                List errorList = []
+                errorList.add(errorMessage)
+
+                Map errorData = null
+                if (aiProviderError) {
+                    errorData = [aiProviderError: aiProviderError]
+                }
+
+                // 调用统一包装服务
+                Map wrapResult = ec.service.sync().name("mcp.ApiResponseServices.wrap#McpApiResponse")
+                    .parameters([
+                        data: errorData,
+                        success: false,
+                        code: errorCode,
+                        message: errorMessage,
+                        errors: errorList,
+                        sessionId: sessionId
+                    ]).call()
+
+                response = wrapResult.response
+            ]]></script>
+        </actions>
+    </service>
+
+</services>

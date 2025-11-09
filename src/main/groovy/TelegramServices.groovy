@@ -7,6 +7,7 @@
 
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
+import org.moqui.entity.EntityCondition
 import org.moqui.mcp.MarketplaceMcpService
 import java.net.URI
 import java.net.http.HttpClient
@@ -241,6 +242,32 @@ if (!callbackQuery && ec.web?.requestBodyText) {
             context.response = [ok: true]
             return
         }
+
+        Map ecommerceCommandResult = processEcommerceCommand(incomingText, merchantId, ec)
+        if (ecommerceCommandResult?.handled) {
+            String replyText = ecommerceCommandResult.message ?: "商品命令已处理"
+            sendTelegramMessage(chatId, replyText, telegramHttpClient, ec)
+
+            context.success = ecommerceCommandResult.success != false
+            context.aiResponse = replyText
+            context.chatId = chatId
+            context.intent = ecommerceCommandResult.intent ?: "ecommerce_command"
+            context.response = [ok: true]
+            return
+        }
+
+        Map orderCommandResult = processOrderCommand(incomingText, merchantId, ec)
+        if (orderCommandResult?.handled) {
+            String replyText = orderCommandResult.message ?: "订单命令已处理"
+            sendTelegramMessage(chatId, replyText, telegramHttpClient, ec)
+
+            context.success = orderCommandResult.success != false
+            context.aiResponse = replyText
+            context.chatId = chatId
+            context.intent = orderCommandResult.intent ?: "ecommerce_order_command"
+            context.response = [ok: true]
+            return
+        }
     }
 
     if (sessionContext?.smartMode == true && messageType == "text") {
@@ -420,12 +447,29 @@ void answerCallbackQuery(String callbackQueryId, HttpClient httpClient, def exec
 Map createMainMenuKeyboard() {
     return [
         inline_keyboard: [
-            [[text: "📊 智能供需匹配", callback_data: "category_supply_demand"],
-             [text: "🏗️ 蜂巢项目管理", callback_data: "category_hivemind"]],
+            [[text: "🏗️ 建筑工程", callback_data: "category_construction"],
+             [text: "🔧 蜂巢项目管理", callback_data: "category_hivemind"]],
             [[text: "🛒 流行电商", callback_data: "category_ecommerce"],
              [text: "💼 大理石ERP", callback_data: "category_erp"]],
-            [[text: "🤖 智能识别模式", callback_data: "smart_classify"],
+            [[text: "🤖 智能识���模式", callback_data: "smart_classify"],
              [text: "ℹ️ 帮助说明", callback_data: "help_info"]]
+        ]
+    ]
+}
+
+// 建筑工程子菜单
+Map createConstructionSubMenu() {
+    return [
+        inline_keyboard: [
+            [[text: "🏠 我要装修", callback_data: "construction_demand_decoration"],
+             [text: "🔧 我要维修", callback_data: "construction_demand_repair"]],
+            [[text: "🏗️ 我要新建", callback_data: "construction_demand_construction"],
+             [text: "🔄 我要改造", callback_data: "construction_demand_renovation"]],
+            [[text: "👷‍♂️ 我是工程师", callback_data: "construction_supply_engineer"],
+             [text: "🏢 我是施工队", callback_data: "construction_supply_team"]],
+            [[text: "📊 查看匹配", callback_data: "construction_matches"],
+             [text: "🏅 服务评价", callback_data: "construction_reviews"]],
+            [[text: "🔙 返回主菜单", callback_data: "back_to_main"]]
         ]
     ]
 }
@@ -658,6 +702,434 @@ Map handleProjectTasksCommand(Map projectRecord, String identifier, def executio
     return [handled: true, success: true, intent: "project_tasks_command", message: sb.toString()]
 }
 
+Map processEcommerceCommand(String rawCommand, String merchantId, def executionContext) {
+    if (!rawCommand) return [handled: false]
+    String trimmed = rawCommand.trim()
+    if (!trimmed || !trimmed.toLowerCase().startsWith("/product")) {
+        return [handled: false]
+    }
+
+    String payload = trimmed.length() > 8 ? trimmed.substring(8).trim() : ""
+    String action = "list"
+    if (payload) {
+        String[] parts = payload.split(/\s+/, 2)
+        action = parts[0]?.toLowerCase() ?: "list"
+        payload = parts.length > 1 ? parts[1] : ""
+    }
+
+    switch (action) {
+        case "add":
+            return handleProductAddCommand(payload, executionContext)
+        case "update":
+            return handleProductUpdateCommand(payload, executionContext)
+        case "list":
+        case "search":
+        case "":
+            return handleProductListCommand(payload, executionContext)
+        default:
+            return [
+                    handled: true,
+                    success: true,
+                    intent : "ecommerce_command_help",
+                    message: """🛍️ 商品命令用法：
+• `/product list limit=5 status=ACTIVE` 查看最近商品
+• `/product add name=商品名 price=99.9 stock=10 category=CAT100`
+• `/product update 商品ID price=199 stock=5 status=INACTIVE`
+
+示例：
+`/product add name=智能投影仪 price=2299 stock=12 category=EC_CAT_DIGITAL`
+"""
+            ]
+    }
+}
+
+Map handleProductAddCommand(String payload, def executionContext) {
+    Map args = parseKeyValueArgs(payload)
+    String name = args.name ?: args.title
+    if (!name) {
+        return [
+                handled: true,
+                success: false,
+                intent : "ecommerce_product_add",
+                message: "🛍️ 请提供商品名称，例如：`/product add name=夏季T恤 price=89 stock=50 category=EC_CAT_APPAREL`"
+        ]
+    }
+
+    BigDecimal price = null
+    if (args.price) {
+        try {
+            price = new BigDecimal(args.price)
+        } catch (Exception ignored) {
+            return [handled: true, success: false, intent: "ecommerce_product_add",
+                    message: "⚠️ 价格格式无效，请使用数字，例如 `price=99.9`"]
+        }
+    }
+
+    Long stockQty = null
+    String stockRaw = args.stock ?: args.quantity ?: args.qty
+    if (stockRaw) {
+        try {
+            stockQty = Long.parseLong(stockRaw)
+        } catch (Exception ignored) {
+            return [handled: true, success: false, intent: "ecommerce_product_add",
+                    message: "⚠️ 库存需为整数，例如 `stock=20`"]
+        }
+    }
+
+    Map serviceParams = [
+            productName      : name,
+            productCategoryId: args.category ?: args.categoryid ?: args.cat,
+            description      : args.desc ?: args.description,
+            imageUrl         : args.image ?: args.imageurl,
+            status           : (args.status ?: "ACTIVE").toString().toUpperCase()
+    ]
+    if (price != null) serviceParams.price = price
+    if (stockQty != null) {
+        serviceParams.stockQuantity = stockQty
+    } else if (!args.containsKey("stock") && !args.containsKey("quantity") && !args.containsKey("qty")) {
+        serviceParams.stockQuantity = 0L
+    }
+
+    try {
+        Map serviceResult = executionContext.service.sync()
+                .name("marketplace.EcommerceServices.create#Product")
+                .parameters(serviceParams)
+                .call()
+        executionContext.message.clearErrors()
+        String productId = serviceResult.ecommerceProductId ?: serviceResult.productId
+        StringBuilder sb = new StringBuilder("✅ 已创建商品：${name}\n")
+        if (price != null) sb.append("• 价格：${price}\n")
+        if (stockQty != null) sb.append("• 库存：${stockQty}\n")
+        if (serviceParams.productCategoryId) sb.append("• 分类：${serviceParams.productCategoryId}\n")
+        sb.append("ID: ${productId}\n可通过 `/product list` 查看。")
+        return [handled: true, success: true, intent: "ecommerce_product_add", message: sb.toString()]
+    } catch (Exception e) {
+        String errMsg = executionContext.message?.errorsString ?: e.message
+        executionContext.message?.clearErrors()
+        return [handled: true, success: false, intent: "ecommerce_product_add",
+                message: "⚠️ 创建商品失败：${errMsg ?: '请稍后重试'}"]
+    }
+}
+
+Map handleProductUpdateCommand(String payload, def executionContext) {
+    if (!payload) {
+        return [
+                handled: true,
+                success: false,
+                intent : "ecommerce_product_update",
+                message: "请提供商品ID，例如：`/product update ECP1001 price=188 stock=20`"
+        ]
+    }
+    String[] parts = payload.split(/\s+/, 2)
+    String productId = parts[0]
+    if (!productId) {
+        return [
+                handled: true,
+                success: false,
+                intent : "ecommerce_product_update",
+                message: "请在 `/product update` 后提供商品ID。"
+        ]
+    }
+    Map args = parseKeyValueArgs(parts.length > 1 ? parts[1] : "")
+    if (!args || args.isEmpty()) {
+        return [
+                handled: true,
+                success: false,
+                intent : "ecommerce_product_update",
+                message: "请提供需要更新的字段，例如：`/product update ${productId} price=199 stock=8 status=INACTIVE`"
+        ]
+    }
+
+    Map params = [ecommerceProductId: productId]
+    if (args.name || args.title) params.productName = args.name ?: args.title
+    if (args.category || args.categoryid || args.cat) params.productCategoryId = args.category ?: args.categoryid ?: args.cat
+    if (args.desc || args.description) params.description = args.desc ?: args.description
+    if (args.image || args.imageurl) params.imageUrl = args.image ?: args.imageurl
+    if (args.status) params.status = args.status.toString().toUpperCase()
+
+    if (args.price) {
+        try {
+            params.price = new BigDecimal(args.price)
+        } catch (Exception ignored) {
+            return [handled: true, success: false, intent: "ecommerce_product_update",
+                    message: "⚠️ price 需为数字，例如 `price=1299.99`"]
+        }
+    }
+    String stockRaw = args.stock ?: args.quantity ?: args.qty
+    if (stockRaw) {
+        try {
+            params.stockQuantity = Long.parseLong(stockRaw)
+        } catch (Exception ignored) {
+            return [handled: true, success: false, intent: "ecommerce_product_update",
+                    message: "⚠️ stock 需为整数，例如 `stock=50`"]
+        }
+    }
+
+    if (params.size() == 1) {
+        return [
+                handled: true,
+                success: false,
+                intent : "ecommerce_product_update",
+                message: "未检测到可更新字段，请添加 price、stock、status 等参数。"
+        ]
+    }
+
+    try {
+        executionContext.service.sync()
+                .name("marketplace.EcommerceServices.update#Product")
+                .parameters(params)
+                .call()
+        executionContext.message.clearErrors()
+        return [handled: true, success: true, intent: "ecommerce_product_update",
+                message: "✅ 已更新商品 ${productId}。\n使用 `/product list` 查看最新信息。"]
+    } catch (Exception e) {
+        String err = executionContext.message?.errorsString ?: e.message
+        executionContext.message?.clearErrors()
+        return [handled: true, success: false, intent: "ecommerce_product_update",
+                message: "⚠️ 更新失败：${err ?: '请稍后再试'}"]
+    }
+}
+
+Map handleProductListCommand(String payload, def executionContext) {
+    Map args = parseKeyValueArgs(payload)
+    int limit = 5
+    String limitRaw = args.limit ?: args.top ?: args.size
+    if (limitRaw) {
+        try {
+            limit = Integer.parseInt(limitRaw)
+        } catch (Exception ignored) { }
+    }
+    limit = Math.max(1, Math.min(limit, 20))
+
+    Map filters = [:]
+    if (args.category || args.categoryid || args.cat) filters.productCategoryId = args.category ?: args.categoryid ?: args.cat
+    if (args.status) filters.status = args.status.toString().toUpperCase()
+    if (args.keyword || args.q || args.name) filters.keyword = (args.keyword ?: args.q ?: args.name)?.toString()
+
+    List<Map> products = fetchEcommerceProducts(executionContext, limit, filters)
+    String text = formatProductListMessage(products, executionContext)
+    if (filters.keyword) {
+        text = text + "\n🔎 关键字: ${filters.keyword}"
+    }
+    return [handled: true, success: true, intent: "ecommerce_product_list", message: text]
+}
+
+Map processOrderCommand(String rawCommand, String merchantId, def executionContext) {
+    if (!rawCommand) return [handled: false]
+    String trimmed = rawCommand.trim()
+    if (!trimmed || !trimmed.toLowerCase().startsWith("/order")) {
+        return [handled: false]
+    }
+    String payload = trimmed.length() > 6 ? trimmed.substring(6).trim() : ""
+    String action = "status"
+    if (payload) {
+        String[] parts = payload.split(/\s+/, 2)
+        action = parts[0]?.toLowerCase() ?: "status"
+        payload = parts.length > 1 ? parts[1] : ""
+    }
+
+    switch (action) {
+        case "create":
+            return handleOrderCreateCommand(payload, merchantId, executionContext)
+        case "status":
+        case "track":
+            return handleOrderStatusCommand(payload, executionContext)
+        case "list":
+            return handleOrderListCommand(payload, executionContext)
+        default:
+            return [
+                    handled: true,
+                    success: true,
+                    intent : "ecommerce_order_help",
+                    message: """🧾 订单命令用法：
+• `/order create customer=EC_CUST_001 items=ECP1001:2,ECP1004:1 address=东莞松山湖`
+• `/order list status=CREATED limit=5`
+• `/order status EC_ORDER_001`
+
+示例：
+`/order create customer=EC_CUST_001 product=ECP1001 qty=1 address=\"东莞松山湖\"`
+"""
+            ]
+    }
+}
+
+Map handleOrderCreateCommand(String payload, String merchantId, def executionContext) {
+    Map args = parseKeyValueArgs(payload)
+    String customerId = firstArg(args, ["customer", "customerid", "cust", "cid"])
+    if (!customerId) {
+        return [
+                handled: true,
+                success: false,
+                intent : "ecommerce_order_create",
+                message: "请提供客户ID，例如：`/order create customer=EC_CUST_001 product=ECP1001 qty=1 address=东莞松山湖`"
+        ]
+    }
+    List<String> parseErrors = []
+    List<Map> orderItems = buildOrderItemsFromArgs(args, parseErrors)
+    if (!orderItems || orderItems.isEmpty()) {
+        return [
+                handled: true,
+                success: false,
+                intent : "ecommerce_order_create",
+                message: "请通过 `items=ECP1001:2,ECP1004:1` 或 `product=ECP1001 qty=2` 指定商品明细"
+        ]
+    }
+    if (parseErrors && !parseErrors.isEmpty()) {
+        return [handled: true, success: false, intent: "ecommerce_order_create",
+                message: "⚠️ ${parseErrors.join('\\n')}"]
+    }
+
+    Map serviceParams = [
+            ecommerceCustomerId: customerId,
+            cartId             : firstArg(args, ["cart", "cartid"]),
+            shippingAddress    : firstArg(args, ["address", "addr", "shipping", "shipto"]),
+            orderItems         : orderItems
+    ]
+    try {
+        Map serviceResult = executionContext.service.sync()
+                .name("marketplace.EcommerceServices.create#Order")
+                .parameters(serviceParams)
+                .call()
+        executionContext.message.clearErrors()
+        String orderId = serviceResult.ecommerceOrderId
+        def total = serviceResult.orderTotal
+        String totalText = total ? executionContext.l10n.formatCurrency(total, "CNY") : "--"
+        StringBuilder sb = new StringBuilder("✅ 订单已创建\n")
+        sb.append("• 订单号: ${orderId}\n")
+        sb.append("• 客户: ${customerId}\n")
+        sb.append("• 金额: ${totalText}\n")
+        if (serviceParams.shippingAddress) sb.append("• 地址: ${serviceParams.shippingAddress}\n")
+        sb.append("\n使用 `/order status ${orderId}` 查看配送状态。")
+        return [handled: true, success: true, intent: "ecommerce_order_create", message: sb.toString()]
+    } catch (Exception e) {
+        String err = executionContext.message?.errorsString ?: e.message
+        executionContext.message?.clearErrors()
+        return [handled: true, success: false, intent: "ecommerce_order_create",
+                message: "⚠️ 创建订单失败：${err ?: '请稍后再试'}"]
+    }
+}
+
+Map handleOrderStatusCommand(String payload, def executionContext) {
+    if (!payload) {
+        return [
+                handled: true,
+                success: false,
+                intent : "ecommerce_order_status",
+                message: "请提供订单号，例如：`/order status EC_ORDER_001`"
+        ]
+    }
+    String[] parts = payload.split(/\s+/, 2)
+    String orderId = parts[0]
+    if (!orderId) {
+        return [
+                handled: true,
+                success: false,
+                intent : "ecommerce_order_status",
+                message: "请提供正确的订单ID，例如 EC_ORDER_001。"
+        ]
+    }
+    try {
+        Map statusResult = executionContext.service.sync()
+                .name("marketplace.EcommerceServices.get#OrderStatus")
+                .parameters([ecommerceOrderId: orderId])
+                .call()
+        if (!statusResult.order) {
+            return [handled: true, success: false, intent: "ecommerce_order_status",
+                    message: "未找到订单 ${orderId}，请确认编号是否正确。"]
+        }
+        Map order = statusResult.order
+        def total = order.orderTotal ?: statusResult.orderTotal
+        String totalText = total ? executionContext.l10n.formatCurrency(total, order.currencyUomId ?: "CNY") : "--"
+        StringBuilder sb = new StringBuilder("🧾 订单状态\n")
+        sb.append("• 订单号: ${orderId}\n")
+        sb.append("• 状态: ${statusResult.orderStatus ?: order.orderStatus}\n")
+        sb.append("• 支付: ${statusResult.paymentStatus ?: order.paymentStatus}\n")
+        sb.append("• 金额: ${totalText}\n")
+        if (order.createdDate) {
+            sb.append("• 创建时间: ${executionContext.l10n.format(order.createdDate, 'yyyy-MM-dd HH:mm')}\n")
+        }
+        if (order.shippingAddress) sb.append("• 地址: ${order.shippingAddress}\n")
+        return [handled: true, success: true, intent: "ecommerce_order_status", message: sb.toString()]
+    } catch (Exception e) {
+        String err = executionContext.message?.errorsString ?: e.message
+        executionContext.message?.clearErrors()
+        return [handled: true, success: false, intent: "ecommerce_order_status",
+                message: "⚠️ 查询失败：${err ?: '请稍后尝试'}"]
+    }
+}
+
+Map handleOrderListCommand(String payload, def executionContext) {
+    Map args = parseKeyValueArgs(payload)
+    int limit = 5
+    String limitRaw = args.limit ?: args.top ?: args.size
+    if (limitRaw) {
+        try {
+            limit = Integer.parseInt(limitRaw)
+        } catch (Exception ignored) { }
+    }
+    limit = Math.max(1, Math.min(limit, 10))
+    Map params = [limit: limit]
+    String statusFilter = firstArg(args, ["status", "orderstatus", "state"])
+    if (statusFilter) params.orderStatus = statusFilter.toUpperCase()
+    String customerFilter = firstArg(args, ["customer", "customerid", "cust", "cid"])
+    if (customerFilter) params.ecommerceCustomerId = customerFilter
+    try {
+        Map listResult = executionContext.service.sync()
+                .name("marketplace.EcommerceServices.get#OrderList")
+                .parameters(params)
+                .call()
+        List orders = listResult.orders ?: []
+        String message = formatOrderListMessage(orders, executionContext, statusFilter, customerFilter)
+        return [handled: true, success: true, intent: "ecommerce_order_list", message: message]
+    } catch (Exception e) {
+        String err = executionContext.message?.errorsString ?: e.message
+        executionContext.message?.clearErrors()
+        return [handled: true, success: false, intent: "ecommerce_order_list",
+                message: "⚠️ 获取订单列表失败：${err ?: '请稍后重试'}"]
+    }
+}
+
+List<Map> buildOrderItemsFromArgs(Map args, List<String> parseErrors = null) {
+    List<Map> orderItems = []
+    String rawItems = firstArg(args, ["items", "lines"])
+    if (rawItems) {
+        rawItems.split(/[;,，\|]/).eachWithIndex { String token, int idx ->
+            String entry = token?.trim()
+            if (!entry) return
+            String[] pair = entry.split(/[:x\*]/)
+            String productId = pair[0]?.trim()
+            if (!productId) return
+            int qty = 1
+            if (pair.length > 1) {
+                try {
+                    qty = Integer.parseInt(pair[1].trim())
+                } catch (Exception ignored) {
+                    parseErrors?.add("第 ${idx + 1} 个商品数量无效: ${pair[1]}")
+                }
+            }
+            qty = Math.max(1, qty)
+            orderItems << [ecommerceProductId: productId, quantity: qty]
+        }
+    }
+    if (orderItems.isEmpty()) {
+        String singleProduct = firstArg(args, ["product", "productid", "pid"])
+        if (singleProduct) {
+            int qty = 1
+            String qtyRaw = firstArg(args, ["quantity", "qty", "count"])
+            if (qtyRaw) {
+                try {
+                    qty = Integer.parseInt(qtyRaw)
+                } catch (Exception ignored) {
+                    parseErrors?.add("数量 ${qtyRaw} 不是有效数字，已采用 1 件")
+                    qty = 1
+                }
+            }
+            orderItems << [ecommerceProductId: singleProduct, quantity: Math.max(1, qty)]
+        }
+    }
+    return orderItems
+}
+
 Map resolveHiveMindProjectRecord(String identifier, String merchantId, def executionContext) {
     def entity = executionContext.entity
     def projectFind = entity.find("marketplace.project.HiveMindProject")
@@ -760,11 +1232,14 @@ void handleCallbackQuery(Map callbackQuery, HttpClient httpClient, def ec) {
     Map sessionContext = loadSessionContext(sessionId, ec)
 
     switch (data) {
+        case "category_construction":
+            sendTelegramMessage(chatId, "🏗️ 建筑工程服务\n\n请选择您的需求类型：", httpClient, ec, createConstructionSubMenu())
+            break
         case "category_supply_demand":
             sendTelegramMessage(chatId, "📊 智能供需匹配\n\n请选择需要的操作：", httpClient, ec, createSupplyDemandSubMenu())
             break
         case "category_hivemind":
-            sendTelegramMessage(chatId, "🏗️ 蜂巢项目管理\n\n请选择需要的操作：", httpClient, ec, createProjectSubMenu())
+            sendTelegramMessage(chatId, "🔧 蜂巢项目管理\n\n请选择需要的操作：", httpClient, ec, createProjectSubMenu())
             break
         case "category_ecommerce":
             sendTelegramMessage(chatId, "🛒 流行电商\n\n请选择需要的操作：", httpClient, ec, createEcommerceSubMenu())
@@ -885,6 +1360,62 @@ void handleCallbackQuery(Map callbackQuery, HttpClient httpClient, def ec) {
         case "sd_image":
             sendTelegramMessage(chatId, "📷 请上传相关图片，我会帮助识别并整理需求。", httpClient, ec)
             break
+        // 建筑工程需求回调处理
+        case "construction_demand_decoration":
+            sendTelegramMessage(chatId, "🏠 装修需求登记\n\n请描述您的装修需求：\n• 房屋面积（平方米）\n• 预算范围\n• 装修风格偏好\n• 期望开工时间\n\n请直接输入详细需求，我会为您匹配合适的装修团队。", httpClient, ec)
+            break
+        case "construction_demand_repair":
+            sendTelegramMessage(chatId, "🔧 维修需求登记\n\n请描述您的维修需求：\n• 维修类型（水电/墙面/屋顶等）\n• 问题严重程度\n• 预算范围\n• 紧急程度\n\n请详细描述问题，我会为您匹配专业维修师傅。", httpClient, ec)
+            break
+        case "construction_demand_construction":
+            sendTelegramMessage(chatId, "🏗️ 新建工程需求\n\n请提供工程信息：\n• 建筑类型（住宅/商业/工业）\n• 建筑面积\n• 工程预算\n• 工期要求\n• 特殊要求\n\n请详细描述工程需求，我会为您匹配专业施工团队。", httpClient, ec)
+            break
+        case "construction_demand_renovation":
+            sendTelegramMessage(chatId, "🔄 改造工程需求\n\n请描述改造项目：\n• 改造类型（结构/功能/外观）\n• 改造面积\n• 预算范围\n• 工期要求\n\n请详细说明改造需求，我会为您匹配合适的改造团队。", httpClient, ec)
+            break
+        // 建筑工程服务供应回调处理
+        case "construction_supply_engineer":
+            sendTelegramMessage(chatId, "👷‍♂️ 工程师服务登记\n\n请提供您的专业信息：\n• 专业领域（结构/建筑/装修设计等）\n• 从业年限\n• 资质证书\n• 服务范围\n• 收费标准\n\n我会将您的信息匹配给需要专业工程师的客户。", httpClient, ec)
+            break
+        case "construction_supply_team":
+            sendTelegramMessage(chatId, "🏢 施工队服务登记\n\n请提供团队信息：\n• 施工类型（装修/维修/新建/改造）\n• 团队规模\n• 专业特长\n• 服务区域\n• 价格范围\n• 成功案例\n\n我会为您匹配合适的工程项目。", httpClient, ec)
+            break
+        case "construction_matches":
+            try {
+                // 调用建筑工程匹配服务
+                def matchResult = ec.service.sync().name("marketplace.ConstructionServices.find#ConstructionMatches")
+                    .parameters([maxResults: 5, minScore: 0.6]).call()
+
+                List matches = matchResult.matches ?: []
+                String responseText = "📊 建筑工程匹配结果：\n\n"
+
+                if (matches.isEmpty()) {
+                    responseText += "暂无匹配项目，请先发布需求或服务信息。\n\n"
+                    responseText += "💡 提示：\n"
+                    responseText += "• 点击上方按钮发布需求\n"
+                    responseText += "• 提供更详细的项目信息\n"
+                    responseText += "• 适当调整预算或时间要求"
+                } else {
+                    matches.eachWithIndex { match, idx ->
+                        responseText += "${idx + 1}. 匹配度：${(match.matchScore * 100).intValue()}%\n"
+                        responseText += "   ${match.matchReason ?: '基于项目需求匹配'}\n\n"
+                    }
+                    responseText += "📞 如需详细沟通，请联系客服获取联系方式。"
+                }
+
+                editTelegramMessage(chatId, messageId, responseText, createConstructionSubMenu(), httpClient, ec)
+            } catch (Exception e) {
+                ec.logger.error("建筑工程匹配查询失败", e)
+                sendTelegramMessage(chatId, "❌ 匹配查询暂时不可用，请稍后再试。", httpClient, ec)
+            }
+            break
+        case "construction_reviews":
+            sendTelegramMessage(chatId, "🏅 建筑工程服务评价\n\n功能开发中，即将支持：\n• 查看工程师和施工队评价\n• 项目完成度评分\n• 质量和时效性评估\n• 性价比分析\n\n请继续使用其他功能或稍后再试。", httpClient, ec)
+            break
+        case "back_to_main":
+            sessionContext.smartMode = false
+            editTelegramMessage(chatId, messageId, "请选择业务分类：", createMainMenuKeyboard(), httpClient, ec)
+            break
         default:
             sendTelegramMessage(chatId, "⚙️ 功能开发中，敬请等待进一步更新。", httpClient, ec)
             break
@@ -965,6 +1496,38 @@ void ensureTelegramParty(String partyId, def ec) {
     }
 }
 
+Map parseKeyValueArgs(String payload) {
+    Map args = [:]
+    if (!payload) return args
+    def matcher = payload =~ /([A-Za-z0-9_]+)=("([^"]*)"|'([^']*)'|[^\s]+)/
+    matcher.each { match ->
+        if (match.size() >= 2) {
+            String key = match[1]?.toString()?.toLowerCase()
+            String quoted = match[3] ?: match[4]
+            String rawValue = (quoted ?: match[2])?.toString()
+            if (!quoted && rawValue && (rawValue.startsWith("\"") || rawValue.startsWith("'")) && rawValue.length() >= 2) {
+                rawValue = rawValue.substring(1, rawValue.length() - 1)
+            }
+            if (key) args[key] = rawValue
+        }
+    }
+    return args
+}
+
+String firstArg(Map args, List<String> keys) {
+    if (!args || args.isEmpty() || !keys) return null
+    for (String key : keys) {
+        if (args.containsKey(key)) {
+            def value = args[key]
+            if (value != null) {
+                String text = value.toString().trim()
+                if (text) return text
+            }
+        }
+    }
+    return null
+}
+
 String formatProductListMessage(List products, def ec) {
     if (!products || products.isEmpty()) {
         return "🛍️ 当前尚未创建商品，请先通过 Web 控制台或调用 REST API 新增商品。"
@@ -1008,7 +1571,7 @@ String formatLowStockMessage(List products, def ec) {
 
 String formatRecommendationMessage(List recommendations, def ec) {
     if (!recommendations || recommendations.isEmpty()) {
-        return "🎯 暂无推荐结果，请先录入商品与客户偏好信息。"
+        return "🎯 暂无推荐结果，请先录入商品、评价或订单信息后再试。"
     }
     StringBuilder sb = new StringBuilder("🎯 精选推荐商品：\n")
     recommendations.eachWithIndex { Map rec, int idx ->
@@ -1025,8 +1588,46 @@ String formatRecommendationMessage(List recommendations, def ec) {
         }
         String priceText = priceValue != null ? ec.l10n.formatCurrency(priceValue, currency) : "未定价"
         sb.append("${idx + 1}. ${name} - ${priceText}\n")
+        if (rec.avgRating) {
+            try {
+                BigDecimal rating = rec.avgRating instanceof BigDecimal ?
+                        (BigDecimal) rec.avgRating : new BigDecimal(rec.avgRating.toString())
+                sb.append("   ⭐️ ${rating.setScale(1, RoundingMode.HALF_UP)} /5 · 评价 ${rec.reviewCount ?: 0}\n")
+            } catch (Exception ignored) { }
+        }
+        if (rec.orderCount) {
+            sb.append("   📦 累计订单 ${rec.orderCount}\n")
+        }
+        if (rec.recommendationSource) {
+            sb.append("   来源：${rec.recommendationSource}\n")
+        }
     }
     sb.append("\n可继续描述客户需求，AI 将输出更精确推荐。")
+    return sb.toString()
+}
+
+String formatOrderListMessage(List orders, def ec, String statusFilter = null, String customerFilter = null) {
+    if (!orders || orders.isEmpty()) {
+        return "🧾 当前没有符合条件的订单记录，可使用 `/order create` 新建。"
+    }
+    StringBuilder sb = new StringBuilder("🧾 最近订单：\n")
+    if (statusFilter || customerFilter) {
+        sb.append("筛选")
+        if (statusFilter) sb.append(" 状态=${statusFilter.toUpperCase()}")
+        if (customerFilter) sb.append(statusFilter ? "，" : " ").append("客户=${customerFilter}")
+        sb.append("\n")
+    }
+    orders.eachWithIndex { Map order, int idx ->
+        String orderId = order.ecommerceOrderId ?: "N/A"
+        String status = order.orderStatus ?: "UNKNOWN"
+        String currency = order.currencyUomId ?: "CNY"
+        String totalText = order.orderTotal ? ec.l10n.formatCurrency(order.orderTotal, currency) : "--"
+        String created = order.createdDate ? ec.l10n.format(order.createdDate, "MM-dd HH:mm") : "--"
+        sb.append("${idx + 1}. ${orderId} (${status})\n")
+        sb.append("   金额: ${totalText} | 客户: ${order.ecommerceCustomerId ?: '--'}\n")
+        sb.append("   创建: ${created}\n")
+    }
+    sb.append("\n使用 `/order status 订单号` 查看详细信息。")
     return sb.toString()
 }
 
@@ -1035,18 +1636,36 @@ List<Map> fetchEcommerceProducts(def ec, int limit = 20, Map filters = [:]) {
     if (filters.productCategoryId) find.condition("productCategoryId", filters.productCategoryId)
     if (filters.status) find.condition("status", filters.status)
     find.orderBy("-lastUpdatedDate")
-    find.limit(limit)
+    int fetchLimit = filters.keyword ? Math.max(limit * 3, 20) : limit
+    find.limit(fetchLimit)
+    find.disableAuthz()
     def entityList = find.list()
-    return entityList ? entityList.collect { it.getMap(false) } : []
+    List<Map> results = entityList ? entityList.collect { it.getMap(false) } : []
+    if (filters.keyword) {
+        String kw = filters.keyword.toString().toLowerCase()
+        results = results.findAll { Map prod ->
+            String name = prod.productName?.toString()?.toLowerCase() ?: ""
+            String desc = prod.description?.toString()?.toLowerCase() ?: ""
+            return name.contains(kw) || desc.contains(kw)
+        }
+    }
+    return results.take(limit)
 }
 
-List<Map> fetchEcommerceRecommendations(def ec, int limit = 5) {
-    def find = ec.entity.find("marketplace.ecommerce.EcommerceProduct")
-            .condition("status", "ACTIVE")
-    find.orderBy("-lastUpdatedDate")
-    find.limit(limit)
-    def entityList = find.list()
-    return entityList ? entityList.collect { it.getMap(false) } : []
+List<Map> fetchEcommerceRecommendations(def ec, int limit = 5, Map filters = [:]) {
+    Map params = [limit: limit]
+    if (filters.intentType) params.intentType = filters.intentType
+    if (filters.productCategoryId) params.preferredCategoryId = filters.productCategoryId
+    try {
+        Map serviceResult = ec.service.sync()
+                .name("marketplace.EcommerceServices.get#ProductRecommendations")
+                .parameters(params)
+                .call()
+        return serviceResult.recommendations instanceof List ? serviceResult.recommendations : []
+    } catch (Exception e) {
+        ec.logger.warn("电商推荐服务调用失败: ${e.message}")
+        return []
+    }
 }
 
 void handleSmartClassification(String chatId, String messageText, String sessionId, HttpClient httpClient, def ec) {
