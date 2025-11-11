@@ -19,7 +19,7 @@
     </transition>
 
     <actions>
-        <entity-find entity-name="mcp.McpDialogSession" list="sessions">
+        <entity-find entity-name="mcp.dialog.McpDialogSession" list="sessions">
             <order-by field-name="-lastModifiedDate"/>
         </entity-find>
     </actions>

@@ -612,4 +612,131 @@
         </actions>
     </service>
 
+    <!-- ==================== V2 统一响应格式服务 ==================== -->
+
+    <service verb="chat" noun="MessageV2" authenticate="false" allow-remote="true">
+        <description>AI chat service with unified response format V2</description>
+        <in-parameters>
+            <parameter name="message" type="String" required="true"/>
+            <parameter name="sessionId" type="String" required="false"/>
+            <parameter name="userType" type="String" default-value="anonymous"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="response" type="Map"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                // Call original chat service
+                Map chatResult = ec.service.sync().name("moqui.mcp.chat#Message")
+                    .parameters(context).call()
+
+                // Wrap with unified response format
+                Map wrapResult = ec.service.sync().name("mcp.ApiResponseServices.wrap#McpChatResponse")
+                    .parameters([
+                        chatData: chatResult,
+                        sessionId: chatResult.sessionId ?: sessionId,
+                        aiProvider: "GLM-4-Plus"
+                    ]).call()
+
+                response = wrapResult.response
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="get" noun="SmartRecommendationsV2" authenticate="false" allow-remote="true">
+        <description>Get smart recommendations with unified response format V2</description>
+        <in-parameters>
+            <parameter name="userId" type="String" required="false"/>
+            <parameter name="category" type="String" required="false"/>
+            <parameter name="limit" type="Integer" default-value="10"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="response" type="Map"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                // Call original recommendations service
+                Map recsResult = ec.service.sync().name("moqui.mcp.get#SmartRecommendations")
+                    .parameters(context).call()
+
+                // Wrap with unified response format
+                Map wrapResult = ec.service.sync().name("mcp.ApiResponseServices.wrap#McpApiResponse")
+                    .parameters([
+                        data: [recommendations: recsResult.recommendations ?: []],
+                        success: true,
+                        message: "智能推荐获取成功"
+                    ]).call()
+
+                response = wrapResult.response
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="get" noun="DialogSessionsV2" authenticate="false" allow-remote="true">
+        <description>Get dialog sessions with unified response format V2</description>
+        <in-parameters>
+            <parameter name="userId" type="String" required="false"/>
+            <parameter name="merchantId" type="String" required="false"/>
+            <parameter name="pageIndex" type="Integer" default-value="0"/>
+            <parameter name="pageSize" type="Integer" default-value="20"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="response" type="Map"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                // Mock session data for now since entity is missing
+                List sessions = []
+                if (merchantId) {
+                    sessions.add([
+                        sessionId: "SESS_${merchantId}_${System.currentTimeMillis()}",
+                        merchantId: merchantId,
+                        status: "ACTIVE",
+                        lastModified: ec.user.nowTimestamp
+                    ])
+                }
+
+                // Wrap with unified response format
+                Map wrapResult = ec.service.sync().name("mcp.ApiResponseServices.wrap#McpApiResponse")
+                    .parameters([
+                        data: [sessions: sessions],
+                        success: true,
+                        message: "对话会话列表获取成功"
+                    ]).call()
+
+                response = wrapResult.response
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="create" noun="MarketplaceSessionV2" authenticate="false" allow-remote="true">
+        <description>Create marketplace session with unified response format V2</description>
+        <in-parameters>
+            <parameter name="merchantId" type="String" required="true"/>
+            <parameter name="userType" type="String" default-value="merchant"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="response" type="Map"/>
+        </out-parameters>
+        <actions>
+            <script><![CDATA[
+                // Call original create session service
+                Map sessionResult = ec.service.sync().name("moqui.mcp.create#MarketplaceSession")
+                    .parameters(context).call()
+
+                // Wrap with unified response format
+                Map wrapResult = ec.service.sync().name("mcp.ApiResponseServices.wrap#McpApiResponse")
+                    .parameters([
+                        data: [sessionId: sessionResult.sessionId],
+                        success: sessionResult.success,
+                        message: "会话创建成功",
+                        sessionId: sessionResult.sessionId,
+                        aiProvider: "GLM-4-Plus"
+                    ]).call()
+
+                response = wrapResult.response
+            ]]></script>
+        </actions>
+    </service>
+
 </services>

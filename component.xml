@@ -8,6 +8,7 @@
     <service-include location="component://moqui-mcp/service/moqui/mcp.xml"/>
     <service-include location="component://moqui-mcp/service/moqui/mcp_compat.xml"/>
     <service-include location="component://moqui-mcp/service/mcp/routing.xml"/>
+    <service-include location="component://moqui-mcp/service/mcp/ApiResponseServices.xml"/>
 
     <!-- Entity 定义文件 -->
     <entity-facade>

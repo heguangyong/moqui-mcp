@@ -4,7 +4,7 @@
 
     <!-- ==================== MCP组件统一REST API响应包装服务 ==================== -->
 
-    <service verb="wrap" noun="McpApiResponse" authenticate="false" allow-remote="false">
+    <service verb="wrap" noun="McpApiResponse" authenticate="false" allow-remote="true">
         <description>MCP组件统一REST API响应格式包装服务</description>
         <in-parameters>
             <parameter name="data" type="Object" required="false">
@@ -87,7 +87,7 @@
         </actions>
     </service>
 
-    <service verb="wrap" noun="McpChatResponse" authenticate="false" allow-remote="false">
+    <service verb="wrap" noun="McpChatResponse" authenticate="false" allow-remote="true">
         <description>MCP聊天响应包装</description>
         <in-parameters>
             <parameter name="chatData" type="Map" required="true">
@@ -133,7 +133,7 @@
         </actions>
     </service>
 
-    <service verb="wrap" noun="McpErrorResponse" authenticate="false" allow-remote="false">
+    <service verb="wrap" noun="McpErrorResponse" authenticate="false" allow-remote="true">
         <description>MCP错误响应包装</description>
         <in-parameters>
             <parameter name="errorMessage" type="String" required="true">
